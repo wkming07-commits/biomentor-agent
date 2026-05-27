@@ -2,109 +2,69 @@
 
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bot,
-  Box,
-  ChevronDown,
-  ChevronUp,
-  FlaskConical,
-  Layers,
-  RotateCw,
-  Search,
-  SendHorizonal,
-  ZoomIn,
-} from "lucide-react";
+import { Box, ChevronRight, FlaskConical, Layers, RotateCw, Search, Sparkles, ZoomIn } from "lucide-react";
 
-import { resolveProteinViaApi } from "@/lib/bioToolApi";
-import { resolveProteinQuery } from "@/lib/biotools.mjs";
+import { searchProteinCandidates } from "@/lib/biotools.mjs";
 
+// 3Dmol.js is loaded from CDN for the structure viewer.
 declare global {
   interface Window {
     $3Dmol?: any;
   }
 }
 
-const suggestions = ["CRISPR-Cas9", "GFP", "胰岛素", "血红蛋白", "4HHB", "P42212"];
+const suggestions = ["GFP", "Cas9", "4HHB", "P42212", "insulin", "TP53"];
 const styles = [
   { key: "cartoon", label: "卡通", icon: Layers },
   { key: "stick", label: "棒状", icon: FlaskConical },
   { key: "sphere", label: "球体", icon: Box },
 ] as const;
 
+type ViewerStyle = (typeof styles)[number]["key"];
+
 export default function ProteinPage() {
-  const [proteinName, setProteinName] = useState("GFP");
-  const [activeQuery, setActiveQuery] = useState("GFP");
+  const [query, setQuery] = useState("GFP");
+  const [candidates, setCandidates] = useState(() => searchProteinCandidates("GFP"));
+  const [selectedId, setSelectedId] = useState(candidates[0]?.id || "gfp");
   const [viewerReady, setViewerReady] = useState(false);
-  const [viewerStatus, setViewerStatus] = useState("等待 3Dmol.js 加载");
-  const [apiStatus, setApiStatus] = useState("后端 API 未连接时使用前端备用解析");
-  const [apiProtein, setApiProtein] = useState<Record<string, unknown> | null>(null);
-  const [style, setStyle] = useState<(typeof styles)[number]["key"]>("cartoon");
-  const [chatInput, setChatInput] = useState("");
-  const [quizOpen, setQuizOpen] = useState(false);
+  const [viewerStatus, setViewerStatus] = useState("正在准备结构查看器");
+  const [style, setStyle] = useState<ViewerStyle>("cartoon");
   const viewerRef = useRef<HTMLDivElement>(null);
 
-  const fallbackProtein = useMemo(() => resolveProteinQuery(activeQuery), [activeQuery]);
-  const protein = useMemo(
-    () => ({
-      ...fallbackProtein,
-      label: String(apiProtein?.label || fallbackProtein.label),
-      accession: String(apiProtein?.accession || fallbackProtein.accession),
-      pdbId: String(apiProtein?.pdb_id || fallbackProtein.pdbId),
-      source: String(apiProtein?.source || fallbackProtein.source),
-      organism: String(apiProtein?.organism || fallbackProtein.organism),
-      confidence:
-        typeof apiProtein?.confidence === "number"
-          ? apiProtein.confidence
-          : fallbackProtein.confidence,
-      teachingFocus: String(apiProtein?.teaching_focus || fallbackProtein.teachingFocus),
-      structureUrl: String(apiProtein?.structure_url || fallbackProtein.structureUrl),
-      alphaFoldUrl: String(apiProtein?.alphafold_url || fallbackProtein.alphaFoldUrl),
-      alphaFoldApiUrl: String(apiProtein?.alphafold_api_url || fallbackProtein.alphaFoldApiUrl),
-    }),
-    [apiProtein, fallbackProtein],
+  const selected = useMemo(
+    () => candidates.find((candidate) => candidate.id === selectedId) || candidates[0] || searchProteinCandidates("GFP")[0],
+    [candidates, selectedId],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    resolveProteinViaApi(activeQuery).then((record) => {
-      if (cancelled) return;
-      if (record) {
-        setApiProtein(record);
-        setApiStatus("已连接后端 /api/bio-tools/protein/resolve");
-      } else {
-        setApiProtein(null);
-        setApiStatus("后端不可用，使用前端备用解析");
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeQuery]);
+  const handleSearch = (nextQuery = query) => {
+    const results = searchProteinCandidates(nextQuery);
+    setCandidates(results);
+    if (results[0]) setSelectedId(results[0].id);
+    setQuery(nextQuery);
+  };
 
   useEffect(() => {
-    if (!viewerReady || !viewerRef.current || !window.$3Dmol) return;
+    if (!viewerReady || !viewerRef.current || !window.$3Dmol || !selected?.structureUrl) return;
 
     let cancelled = false;
-    setViewerStatus(`正在从 ${protein.source} 加载结构...`);
+    setViewerStatus("正在加载结构文件…");
 
     async function loadStructure() {
       try {
-        const response = await fetch(protein.structureUrl);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const response = await fetch(selected.structureUrl);
+        if (!response.ok) throw new Error("结构文件暂时无法访问");
         const pdbText = await response.text();
         if (cancelled || !viewerRef.current || !window.$3Dmol) return;
 
         viewerRef.current.innerHTML = "";
-        const viewer = window.$3Dmol.createViewer(viewerRef.current, {
-          backgroundColor: "#111827",
-        });
+        const viewer = window.$3Dmol.createViewer(viewerRef.current, { backgroundColor: "#111827" });
         viewer.addModel(pdbText, "pdb");
         viewer.setStyle({}, { [style]: { color: "spectrum" } });
         viewer.zoomTo();
         viewer.render();
         setViewerStatus("结构已加载，可拖拽旋转、滚轮缩放");
       } catch (error) {
-        setViewerStatus(`结构加载失败：${error instanceof Error ? error.message : "未知错误"}`);
+        setViewerStatus(error instanceof Error ? error.message : "结构加载失败，请换一个候选结果");
       }
     }
 
@@ -112,167 +72,134 @@ export default function ProteinPage() {
     return () => {
       cancelled = true;
     };
-  }, [protein.structureUrl, protein.source, style, viewerReady]);
-
-  const aiExplanation = `${protein.label}（${protein.organism}）当前使用 ${protein.source} 结构源。教学重点：${protein.teachingFocus}。网页端通过 3Dmol.js 读取 PDB 文件并渲染三维结构；同时保留 AlphaFold DB 链接用于讲解预测结构和 pLDDT 置信度。`;
+  }, [selected?.structureUrl, style, viewerReady]);
 
   return (
-    <div className="min-h-screen pt-[var(--nav-height)] flex flex-col px-6 md:px-10 pb-10 font-body">
+    <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-12 font-body">
       <Script
         src="https://3Dmol.org/build/3Dmol-min.js"
         strategy="afterInteractive"
         onLoad={() => {
           setViewerReady(true);
-          setViewerStatus("3Dmol.js 已加载");
+          setViewerStatus("结构查看器已准备好");
         }}
-        onError={() => setViewerStatus("3Dmol.js 加载失败，请检查网络")}
+        onError={() => setViewerStatus("结构查看器加载失败，请检查网络后重试")}
       />
 
-      <div className="flex flex-col lg:flex-row flex-1 gap-6" style={{ minHeight: 0 }}>
-        <div className="flex-[3] flex flex-col gap-4 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-faint" />
-              <input
-                type="text"
-                placeholder="输入蛋白名、UniProt ID 或 PDB ID"
-                value={proteinName}
-                onChange={(e) => setProteinName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") setActiveQuery(proteinName);
-                }}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-white/60 backdrop-blur border border-white/80 text-brand-ink placeholder:text-brand-faint outline-none focus:border-accent-electric/30 focus:ring-2 focus:ring-accent-electric/10 transition-all"
-              />
-            </div>
-            <button
-              onClick={() => setActiveQuery(proteinName)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-ink text-white hover:bg-[#1a1a2e] transition-all duration-200"
-            >
-              查看结构
-            </button>
+      <div className="max-w-7xl mx-auto pt-8 space-y-6">
+        <header className="liquid-card p-6 md:p-8 overflow-hidden relative">
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl" />
+          <div className="relative z-10">
+            <p className="section-title">Protein Explorer</p>
+            <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">蛋白结构查看器</h1>
+            <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
+              输入蛋白名、基因名、PDB ID 或 UniProt ID，先选择候选结果，再查看三维结构和学习解释。
+            </p>
           </div>
+        </header>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  setProteinName(s);
-                  setActiveQuery(s);
-                }}
-                className="px-3 py-1.5 rounded-full text-xs font-medium text-brand-muted bg-white/40 border border-white/50 hover:bg-white/70 hover:border-accent-electric/20 transition-all"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-
-          <div className="glass-card relative overflow-hidden flex-shrink-0" style={{ minHeight: 460, backgroundColor: "#111827" }}>
-            <div ref={viewerRef} className="absolute inset-0" />
-            <div className="absolute left-4 top-4 right-4 flex items-center justify-between gap-3 pointer-events-none">
-              <div className="rounded-xl bg-black/45 px-3 py-2 text-xs text-white backdrop-blur">
-                {viewerStatus}
-              </div>
-              <div className="rounded-xl bg-black/45 px-3 py-2 text-xs text-white backdrop-blur">
-                3Dmol.js / PDB
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-3 py-1 flex-wrap">
-            <button
-              onClick={() => setViewerStatus("可用鼠标左键拖拽旋转，滚轮缩放")}
-              className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-brand-muted hover:text-brand-ink hover:bg-white/50 transition-all"
-            >
-              <RotateCw className="w-4 h-4" />
-              <span className="text-[10px]">旋转</span>
-            </button>
-            <button
-              onClick={() => setViewerStatus("滚轮或触控板可缩放结构")}
-              className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-brand-muted hover:text-brand-ink hover:bg-white/50 transition-all"
-            >
-              <ZoomIn className="w-4 h-4" />
-              <span className="text-[10px]">缩放</span>
-            </button>
-            {styles.map((btn) => {
-              const Icon = btn.icon;
-              return (
-                <button
-                  key={btn.key}
-                  onClick={() => setStyle(btn.key)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${style === btn.key ? "bg-brand-ink text-white" : "text-brand-muted hover:text-brand-ink hover:bg-white/50"}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[10px]">{btn.label}</span>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          <main className="space-y-4 min-w-0">
+            <div className="liquid-card p-4">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-faint" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => event.key === "Enter" && handleSearch()}
+                    placeholder="搜索 GFP、Cas9、4HHB、P42212…"
+                    className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm bg-white/65 backdrop-blur border border-white/90 text-brand-ink placeholder:text-brand-faint outline-none focus:border-accent-electric/30 focus:ring-2 focus:ring-accent-electric/10 transition-all"
+                  />
+                </div>
+                <button onClick={() => handleSearch()} className="px-5 py-3 rounded-2xl bg-[#111827] text-white text-sm font-bold hover:bg-[#1f2937] transition-all">
+                  搜索结构
                 </button>
-              );
-            })}
-          </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {suggestions.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => handleSearch(item)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold text-brand-muted bg-white/45 border border-white/70 hover:bg-white/80 hover:text-[#111827] transition-all"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div className="glass-card p-4">
-            <div className="flex items-center justify-between mb-3 gap-3">
-              <span className="font-display text-sm font-semibold text-brand-ink">{protein.label}</span>
-              <span className="badge badge-electric">{protein.source}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+              <aside className="liquid-card p-4 space-y-3">
+                <div className="text-xs font-bold text-brand-faint">候选结果</div>
+                {candidates.map((candidate) => (
+                  <button
+                    key={`${candidate.id}-${candidate.pdbId}-${candidate.accession}`}
+                    onClick={() => setSelectedId(candidate.id)}
+                    className={`w-full text-left rounded-2xl border p-3 transition-all ${
+                      selected.id === candidate.id
+                        ? "bg-[#111827] text-white border-[#111827]"
+                        : "bg-white/45 border-white/70 text-brand-muted hover:bg-white/75"
+                    }`}
+                  >
+                    <div className="font-display text-sm font-bold">{candidate.label}</div>
+                    <div className={`mt-1 text-[11px] ${selected.id === candidate.id ? "text-white/70" : "text-brand-faint"}`}>{candidate.organism}</div>
+                    <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <span>{candidate.sourceKind === "experimental" ? "实验结构" : candidate.sourceKind === "predicted" ? "预测结构" : "精选示例"}</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </button>
+                ))}
+              </aside>
+
+              <section className="space-y-4 min-w-0">
+                <div className="glass-card relative overflow-hidden min-h-[500px]" style={{ backgroundColor: "#111827" }}>
+                  <div ref={viewerRef} className="absolute inset-0" />
+                  <div className="absolute left-4 top-4 right-4 flex items-center justify-between gap-3 pointer-events-none">
+                    <div className="rounded-2xl bg-black/45 px-3 py-2 text-xs text-white backdrop-blur">{viewerStatus}</div>
+                    <div className="rounded-2xl bg-black/45 px-3 py-2 text-xs text-white backdrop-blur">PDB: {selected.pdbId || "预测模型"}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button onClick={() => setViewerStatus("可用鼠标左键拖拽旋转，滚轮缩放结构")} className="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm text-brand-muted hover:bg-white/60 hover:text-[#111827] transition-all">
+                    <RotateCw className="w-4 h-4" /> 旋转提示
+                  </button>
+                  <button onClick={() => setViewerStatus("滚轮或触控板可缩放结构；双击可聚焦结构区域")} className="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm text-brand-muted hover:bg-white/60 hover:text-[#111827] transition-all">
+                    <ZoomIn className="w-4 h-4" /> 缩放提示
+                  </button>
+                  {styles.map((btn) => {
+                    const Icon = btn.icon;
+                    return (
+                      <button key={btn.key} onClick={() => setStyle(btn.key)} className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-sm transition-all ${style === btn.key ? "bg-[#111827] text-white" : "text-brand-muted hover:bg-white/60 hover:text-[#111827]"}`}>
+                        <Icon className="w-4 h-4" /> {btn.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-brand-muted">
-              <span>UniProt: <span className="stat-number text-accent-electric">{protein.accession || "—"}</span></span>
-              <span>PDB: <span className="stat-number text-accent-electric">{protein.pdbId || "—"}</span></span>
-              <span>置信度: <span className="stat-number text-[#059669]">{protein.confidence ?? "—"}</span></span>
-              <a className="text-accent-electric underline" href={protein.structureUrl} target="_blank" rel="noreferrer">结构文件</a>
+          </main>
+
+          <aside className="liquid-card p-5 xl:sticky xl:top-24 h-fit">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-9 h-9 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center"><Sparkles className="w-4 h-4" /></div>
+              <div>
+                <div className="font-display font-bold text-[#111827]">结构学习解释</div>
+                <div className="text-[11px] text-brand-faint">{selected.sourceKind === "experimental" ? "实验结构" : "预测/精选结构"}</div>
+              </div>
             </div>
-          </div>
+            <h2 className="font-display text-2xl font-black tracking-[-0.04em] text-[#111827] mb-2">{selected.label}</h2>
+            <div className="space-y-3 text-sm text-brand-muted leading-relaxed">
+              <p><span className="font-semibold text-[#111827]">物种：</span>{selected.organism}</p>
+              <p><span className="font-semibold text-[#111827]">学习重点：</span>{selected.teachingFocus}</p>
+              <p><span className="font-semibold text-[#111827]">怎么看：</span>先观察整体折叠，再切换显示样式查看局部残基、结构域和可能的功能区域。</p>
+            </div>
+            <div className="mt-5 rounded-3xl bg-white/45 border border-white/70 p-4 text-sm leading-relaxed text-brand-muted">
+              <div className="font-semibold text-[#111827] mb-2">理解问题</div>
+              这个蛋白的三维结构中，哪些区域可能与功能、结合或催化相关？如果换成预测结构，你会如何判断哪些区域更可信？
+            </div>
+          </aside>
         </div>
-
-        <div className="flex-[2] glass-card flex flex-col min-w-0">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-white/60">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(37,99,235,0.08)" }}>
-              <Bot className="w-4 h-4 text-accent-electric" />
-            </div>
-            <span className="font-display text-sm font-semibold text-brand-ink">AI 智能体讲解</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ minHeight: 0 }}>
-            <div className="max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed bg-[rgba(13,13,26,0.04)] text-brand-ink border-bottom-left-radius-6">
-              {aiExplanation}
-            </div>
-            <div className="rounded-xl p-4 bg-white/45 border border-white/60 text-xs text-brand-muted leading-relaxed">
-              <div className="font-semibold text-brand-ink mb-2">接入说明</div>
-              <ul className="space-y-1 list-disc pl-4">
-                <li>{apiStatus}</li>
-                <li>优先使用 RCSB PDB 实验结构；输入 UniProt 时回退到 AlphaFold DB 文件地址。</li>
-                <li>页面直接加载 3Dmol.js，在浏览器中渲染 PDB，不需要 Java 插件。</li>
-                <li>后续可把结构域/活性位点标注交给后端 RAG 或 UniProt 注释补全。</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="p-4 border-t border-white/60">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="输入你的问题..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-white/60 backdrop-blur border border-white/80 text-brand-ink placeholder:text-brand-faint outline-none focus:border-accent-electric/30 focus:ring-2 focus:ring-accent-electric/10 transition-all"
-              />
-              <button className="inline-flex items-center justify-center p-2.5 rounded-xl bg-brand-ink text-white hover:bg-[#1a1a2e] transition-all duration-200">
-                <SendHorizonal className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="glass-card mt-4 overflow-hidden">
-        <button onClick={() => setQuizOpen(!quizOpen)} className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium hover:bg-white/30 transition-colors text-brand-ink">
-          <span>验证理解</span>
-          {quizOpen ? <ChevronUp className="w-4 h-4 text-brand-muted" /> : <ChevronDown className="w-4 h-4 text-brand-muted" />}
-        </button>
-        {quizOpen && (
-          <div className="px-6 pb-5 text-sm text-brand-muted leading-relaxed">
-            当前结构源是 <b>{protein.source}</b>。请比较：实验 PDB 结构更适合讨论配体/复合物证据；AlphaFold 预测结构更适合讨论单蛋白折叠和 pLDDT 置信度。
-          </div>
-        )}
       </div>
     </div>
   );

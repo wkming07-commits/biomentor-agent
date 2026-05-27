@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   Share2,
@@ -112,6 +113,13 @@ export default function KnowledgeMapPage() {
           <p className="text-brand-muted text-base md:text-lg font-body max-w-xl mx-auto">
             可视化浏览生物学科知识体系，探索概念之间的联系与层级关系
           </p>
+          <Link
+            href="/knowledge-map/mindmap"
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#111827] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(17,24,39,0.16)] hover:bg-[#1f2937] transition-all"
+          >
+            打开渐进式思维导图
+            <ChevronRight className="w-4 h-4" />
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

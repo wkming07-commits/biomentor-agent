@@ -12,6 +12,11 @@ export interface ProteinRecord {
   alphaFoldApiUrl: string;
 }
 
+export interface ProteinCandidate extends ProteinRecord {
+  sourceKind: "experimental" | "predicted" | "curated";
+  matchType: "pdb" | "uniprot" | "curated";
+}
+
 export interface NucleotideStats {
   sequence: string;
   length: number;
@@ -76,6 +81,21 @@ export interface PathwayRecord {
   edges: PathwayEdge[];
 }
 
+export interface OpenReadingFrame {
+  frame: number;
+  start: number;
+  end: number;
+  length: number;
+  protein: string;
+  complete: boolean;
+}
+
+export interface PathwayLearningStep {
+  id: string;
+  label: string;
+  reason: string;
+}
+
 export const sampleDnaSequence: string;
 export const plasmidExamples: Record<string, PlasmidRecord>;
 export const pathwayCatalog: Record<string, PathwayRecord>;
@@ -86,9 +106,13 @@ export function buildAlphaFoldApiUrl(accession: string): string;
 export function buildReactomeQueryUrl(query: string): string;
 export function buildReactomePathwayUrl(reactomeId: string): string;
 export function resolveProteinQuery(query: string): ProteinRecord;
+export function searchProteinCandidates(query: string): ProteinCandidate[];
 export function sanitizeSequence(input: string): string;
+export function detectSequenceType(input: string): "DNA" | "RNA" | "Protein" | "Mixed" | "Invalid";
+export function transcribeDnaToRna(input: string): string;
 export function calculateNucleotideStats(input: string): NucleotideStats;
 export function translateDna(input: string, frame?: number): string;
+export function findOpenReadingFrames(input: string, minCodons?: number): OpenReadingFrame[];
 export function reverseComplement(input: string): string;
 export function estimateTm(seq: string): number;
 export function designPrimerPair(input: string, primerLength?: number): PrimerPair;
@@ -106,6 +130,7 @@ export function predictBlastHits(input: string): Array<{
   note: string;
 }>;
 export function parseGenBankFeatures(text: string, sequenceLength?: number): PlasmidFeature[];
+export function describeFeature(feature: Partial<PlasmidFeature>): string;
 export function circularFeaturePath(
   feature: Pick<PlasmidFeature, "start" | "end">,
   length: number,
@@ -116,3 +141,5 @@ export function toCytoscapeElements(pathway: {
   nodes: PathwayNode[];
   edges: PathwayEdge[];
 }): Array<{ data: Record<string, string> }>;
+export function getPathwayLearningPath(pathwayKeyOrRecord: string | PathwayRecord): PathwayLearningStep[];
+export function explainPathwayNode(node: PathwayNode, pathway?: PathwayRecord): string;

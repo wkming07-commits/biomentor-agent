@@ -59,6 +59,19 @@ const proteinAliases = new Map(
         teachingFocus: "四聚体装配、血红素结合、变构调控与氧运输",
       },
     },
+    {
+      keys: ["tp53", "p53", "tumor protein p53"],
+      value: {
+        id: "tp53",
+        label: "肿瘤抑制蛋白 p53",
+        accession: "P04637",
+        pdbId: "1TUP",
+        organism: "Homo sapiens",
+        source: "AlphaFold DB + RCSB PDB",
+        confidence: 88.6,
+        teachingFocus: "DNA 结合结构域、四聚化、突变热点与细胞周期检查点",
+      },
+    },
   ].flatMap(({ keys, value }) => keys.map((key) => [key, value])),
 );
 
@@ -218,6 +231,31 @@ export const pathwayCatalog = {
       { from: "pyruvate", to: "atp", type: "activation" },
     ],
   },
+  "dna-repair": {
+    name: "DNA 修复",
+    reactomeId: "R-HSA-73894",
+    focus: "DNA 损伤识别、检查点激活、同源重组与切除修复",
+    nodes: [
+      { id: "damage", label: "DNA 损伤", type: "signal" },
+      { id: "atm-atr", label: "ATM/ATR", type: "enzyme" },
+      { id: "chk", label: "Chk1/2", type: "enzyme" },
+      { id: "p53", label: "p53", type: "protein" },
+      { id: "brca", label: "BRCA1/2", type: "protein" },
+      { id: "hr", label: "同源重组", type: "process" },
+      { id: "ner", label: "切除修复", type: "process" },
+      { id: "stability", label: "基因组稳定", type: "process" },
+    ],
+    edges: [
+      { from: "damage", to: "atm-atr", type: "activation" },
+      { from: "atm-atr", to: "chk", type: "phosphorylation" },
+      { from: "chk", to: "p53", type: "activation" },
+      { from: "atm-atr", to: "brca", type: "phosphorylation" },
+      { from: "brca", to: "hr", type: "activation" },
+      { from: "damage", to: "ner", type: "activation" },
+      { from: "hr", to: "stability", type: "activation" },
+      { from: "ner", to: "stability", type: "activation" },
+    ],
+  },
 };
 
 export function buildRcsbPdbUrl(pdbId) {
@@ -295,6 +333,86 @@ export function resolveProteinQuery(query) {
   return resolveProteinQuery("GFP");
 }
 
+export function searchProteinCandidates(query) {
+  const raw = String(query || "").trim();
+  if (!raw) return [];
+
+  if (/^[0-9][A-Za-z0-9]{3}$/.test(raw)) {
+    const pdbId = raw.toUpperCase();
+    return [
+      {
+        id: pdbId.toLowerCase(),
+        label: `PDB ${pdbId}`,
+        accession: "",
+        pdbId,
+        organism: "RCSB PDB",
+        source: "实验结构",
+        sourceKind: "experimental",
+        confidence: null,
+        teachingFocus: "实验解析结构，适合观察链、配体、结构域和构象。",
+        structureUrl: buildRcsbPdbUrl(pdbId),
+        alphaFoldUrl: "",
+        alphaFoldApiUrl: "",
+        matchType: "pdb",
+      },
+    ];
+  }
+
+  if (/^[A-Za-z][A-Za-z0-9]{4,9}$/.test(raw)) {
+    const accession = raw.toUpperCase();
+    const curated = [...new Map([...proteinAliases.values()].map((v) => [v.id, v])).values()]
+      .find((record) => record.accession.toUpperCase() === accession);
+    const base = curated || {
+      id: accession.toLowerCase(),
+      label: `UniProt ${accession}`,
+      accession,
+      pdbId: "",
+      organism: "AlphaFold DB",
+      source: "预测结构",
+      confidence: null,
+      teachingFocus: "预测结构，适合讲解 pLDDT 置信度和预测/实验结构差异。",
+    };
+    return [
+      {
+        ...base,
+        accession,
+        source: curated ? "AlphaFold DB + RCSB PDB" : "预测结构",
+        sourceKind: "predicted",
+        structureUrl: buildAlphaFoldPdbUrl(accession),
+        alphaFoldUrl: buildAlphaFoldPdbUrl(accession),
+        alphaFoldApiUrl: buildAlphaFoldApiUrl(accession),
+        matchType: curated ? "curated" : "uniprot",
+      },
+    ];
+  }
+
+  const q = raw.toLowerCase();
+  const unique = [...new Map([...proteinAliases.values()].map((value) => [value.id, value])).values()];
+  const matches = unique.filter((record) => {
+    const haystack = [
+      record.id,
+      record.label,
+      record.accession,
+      record.pdbId,
+      record.organism,
+      record.teachingFocus,
+    ].join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+
+  const results = matches.length ? matches : unique.filter((record) => ["gfp", "cas9", "hemoglobin"].includes(record.id));
+  return results.map((record) => ({
+    ...record,
+    pdbId: record.pdbId.toUpperCase(),
+    accession: record.accession.toUpperCase(),
+    sourceKind: "curated",
+    structureUrl: buildRcsbPdbUrl(record.pdbId),
+    alphaFoldUrl: buildAlphaFoldPdbUrl(record.accession),
+    alphaFoldApiUrl: buildAlphaFoldApiUrl(record.accession),
+    matchType: "curated",
+  }));
+}
+
 export function sanitizeSequence(input) {
   return String(input || "")
     .split(/\r?\n/)
@@ -302,6 +420,24 @@ export function sanitizeSequence(input) {
     .join("")
     .toUpperCase()
     .replace(/\s+/g, "");
+}
+
+export function detectSequenceType(input) {
+  const seq = sanitizeSequence(input);
+  if (!seq) return "Invalid";
+  const letters = seq.replace(/[^A-Z*]/g, "");
+  if (!letters) return "Invalid";
+  const dnaLike = /^[ATGCN]+$/.test(letters);
+  const rnaLike = /^[AUGCN]+$/.test(letters) && letters.includes("U") && !letters.includes("T");
+  const proteinLike = /^[ABCDEFGHIKLMNPQRSTVWXYZ*]+$/.test(letters) && /[EFILPQZ*]/.test(letters);
+  if (rnaLike) return "RNA";
+  if (dnaLike) return "DNA";
+  if (proteinLike) return "Protein";
+  return "Mixed";
+}
+
+export function transcribeDnaToRna(input) {
+  return calculateNucleotideStats(input).sequence.replace(/T/g, "U");
 }
 
 export function calculateNucleotideStats(input) {
@@ -359,6 +495,40 @@ export function translateDna(input, frame = 0) {
     protein += codonTable[seq.slice(i, i + 3)] || "X";
   }
   return protein;
+}
+
+export function findOpenReadingFrames(input, minCodons = 2) {
+  const seq = calculateNucleotideStats(input).sequence;
+  const stops = new Set(["TAA", "TAG", "TGA"]);
+  const orfs = [];
+
+  for (let frame = 0; frame < 3; frame += 1) {
+    for (let i = frame; i + 2 < seq.length; i += 3) {
+      if (seq.slice(i, i + 3) !== "ATG") continue;
+      let end = seq.length - ((seq.length - i) % 3);
+      let complete = false;
+      for (let j = i + 3; j + 2 < seq.length; j += 3) {
+        if (stops.has(seq.slice(j, j + 3))) {
+          end = j + 3;
+          complete = true;
+          break;
+        }
+      }
+      const length = end - i;
+      if (length / 3 >= minCodons) {
+        orfs.push({
+          frame: frame + 1,
+          start: i + 1,
+          end,
+          length,
+          protein: translateDna(seq.slice(i, end)),
+          complete,
+        });
+      }
+    }
+  }
+
+  return orfs.sort((a, b) => b.length - a.length || a.start - b.start);
 }
 
 export function reverseComplement(input) {
@@ -502,6 +672,32 @@ export function parseGenBankFeatures(text, sequenceLength = 0) {
   ];
 }
 
+export function describeFeature(feature) {
+  const token = `${feature?.type || ""} ${feature?.label || ""}`.toLowerCase();
+  if (token.includes("ori") || token.includes("origin") || token.includes("rep_origin")) {
+    return "复制起点决定质粒能否在宿主细胞中复制，以及常见情况下的拷贝数和宿主范围。";
+  }
+  if (token.includes("ampr") || token.includes("kanr") || token.includes("resistance") || token.includes("抗性")) {
+    return "抗性基因用于在含抗生素培养基中筛选成功携带质粒的细胞。";
+  }
+  if (token.includes("promoter")) {
+    return "启动子控制下游基因表达，是表达载体设计中决定表达强度和诱导方式的核心元件。";
+  }
+  if (token.includes("mcs") || token.includes("multiple cloning")) {
+    return "多克隆位点包含多个限制性内切酶位点，方便插入外源片段并设计定向克隆。";
+  }
+  if (token.includes("tag") || token.includes("his") || token.includes("gst")) {
+    return "标签序列常用于蛋白纯化、检测或定位，但需要注意是否影响目标蛋白功能。";
+  }
+  if (token.includes("terminator")) {
+    return "终止子帮助转录正确结束，减少读穿转录对载体稳定性和表达结果的影响。";
+  }
+  if (token.includes("cds")) {
+    return "编码序列会被转录和翻译为蛋白，需要检查读框、起止密码子和插入方向。";
+  }
+  return "该元件是质粒图谱中的功能区域，可结合坐标、方向和上下游元件判断其在实验设计中的作用。";
+}
+
 function colorForFeature(type, label) {
   const token = `${type} ${label}`.toLowerCase();
   if (token.includes("ori") || token.includes("origin")) return "#f59e0b";
@@ -548,3 +744,47 @@ export function toCytoscapeElements(pathway) {
   ];
 }
 
+export function getPathwayLearningPath(pathwayKeyOrRecord) {
+  const pathway =
+    typeof pathwayKeyOrRecord === "string"
+      ? pathwayCatalog[pathwayKeyOrRecord]
+      : pathwayKeyOrRecord;
+  if (!pathway) return [];
+
+  const incoming = new Map(pathway.nodes.map((node) => [node.id, 0]));
+  for (const edge of pathway.edges) {
+    incoming.set(edge.to, (incoming.get(edge.to) || 0) + 1);
+  }
+
+  const start = pathway.nodes.find((node) => (incoming.get(node.id) || 0) === 0) || pathway.nodes[0];
+  const path = [];
+  const visited = new Set();
+  let current = start;
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    path.push({
+      id: current.id,
+      label: current.label,
+      reason: explainPathwayNode(current, pathway),
+    });
+    const nextEdge = pathway.edges.find((edge) => edge.from === current.id && !visited.has(edge.to));
+    current = nextEdge ? pathway.nodes.find((node) => node.id === nextEdge.to) : null;
+  }
+
+  return path;
+}
+
+export function explainPathwayNode(node, pathway) {
+  const label = node?.label || "该节点";
+  if (/p53|p21|chk|checkpoint|检查点/i.test(label)) {
+    return `${label} 是通路中的检查点/调控节点，适合优先理解信号如何转化为细胞命运决策。`;
+  }
+  if (/damage|损伤|death|死亡|gf|生长因子/i.test(label)) {
+    return `${label} 是上游输入信号，先理解它能帮助判断通路为什么被启动。`;
+  }
+  if (/phase|凋亡|增殖|atp|稳定|process|执行|生成/i.test(label)) {
+    return `${label} 是通路输出结果，适合用来连接表型、疾病和实验观察。`;
+  }
+  return `${label} 是 ${pathway?.name || "该通路"} 中的关键节点，建议结合上下游边理解激活、抑制或磷酸化关系。`;
+}

@@ -1,278 +1,218 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { ArrowRight, ArrowDown, Sparkles, BookOpen, Microscope, Building2, Users, ChevronRight } from "lucide-react";
-import { HeroCanvas } from "@/components/HeroCanvas";
-import { CountUp } from "@/components/CountUp";
+import {
+  ArrowDown,
+  ArrowRight,
+  BookOpen,
+  BrainCircuit,
+  Building2,
+  ChevronRight,
+  FlaskConical,
+  GitBranch,
+  MessageCircle,
+  Network,
+  Sparkles,
+} from "lucide-react";
+
+const modules = [
+  {
+    href: "/explore",
+    title: "知识探索",
+    desc: "从一个知识点出发，获得结构化解释、关联概念和 AI 导师引导。",
+    tags: ["知识点", "AI 讲解", "关联学习"],
+    icon: BookOpen,
+    accent: "#60a5fa",
+  },
+  {
+    href: "/research",
+    title: "科研实战",
+    desc: "围绕真实科研任务，训练文献阅读、实验设计和数据分析能力。",
+    tags: ["文献", "实验设计", "数据分析"],
+    icon: FlaskConical,
+    accent: "#22d3ee",
+  },
+  {
+    href: "/tools",
+    title: "生物工具箱",
+    desc: "提供蛋白结构、质粒图谱、序列分析和通路探索等动手工具。",
+    tags: ["蛋白结构", "质粒图谱", "序列分析"],
+    icon: BrainCircuit,
+    accent: "#34d399",
+  },
+  {
+    href: "/cases",
+    title: "产业案例",
+    desc: "通过真实应用场景理解生物技术从研究到转化的路径。",
+    tags: ["转化应用", "案例分析", "产业视角"],
+    icon: Building2,
+    accent: "#fbbf24",
+  },
+  {
+    href: "/knowledge-map",
+    title: "知识图谱",
+    desc: "以可视化网络呈现概念、通路和知识之间的结构关系。",
+    tags: ["关系网络", "学习路径", "结构认知"],
+    icon: Network,
+    accent: "#a78bfa",
+  },
+  {
+    href: "/seminar",
+    title: "学术研讨",
+    desc: "模拟学术讨论、汇报和答辩场景，训练科研表达能力。",
+    tags: ["讨论", "汇报", "答辩表达"],
+    icon: MessageCircle,
+    accent: "#fb7185",
+  },
+];
+
+const expansionSteps = [
+  { title: "输入知识点", desc: "例如 CRISPR-Cas9、质粒载体、细胞凋亡。" },
+  { title: "结构化展开", desc: "概念解释、关键关系、常见误区被组织成可学习路径。" },
+  { title: "进入任务", desc: "关联科研问题、实验设计、产业案例和讨论题。" },
+  { title: "调用工具", desc: "需要时进入蛋白、质粒、序列或通路工具辅助理解。" },
+];
+
+const valueCards = [
+  {
+    title: "AI 导师引导",
+    desc: "从问题出发，引导理解知识点、拆解研究任务、形成表达，而不是只给一个结论。",
+    icon: Sparkles,
+  },
+  {
+    title: "结构化知识网络",
+    desc: "不把知识做成孤立条目，而是连接概念、通路、实验和案例之间的关系。",
+    icon: GitBranch,
+  },
+  {
+    title: "专业工具联动",
+    desc: "学习过程中可以进入蛋白、质粒、序列和通路工具，把抽象概念变成可观察结果。",
+    icon: BrainCircuit,
+  },
+];
 
 export default function HomePage() {
   return (
     <>
-      {/* HERO */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-[var(--nav-height)]">
-        <HeroCanvas />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#f0f4ff] pointer-events-none" />
+      <section className="relative min-h-screen overflow-hidden pt-[var(--nav-height)] liquid-hero-bg flex items-center justify-center px-6">
+        <div className="liquid-blob" />
+        <div className="bio-network" />
+        <div className="absolute left-[12%] top-[30%] h-2.5 w-2.5 rounded-full bg-blue-400/50 shadow-[0_0_0_8px_rgba(96,165,250,.1),0_0_28px_rgba(96,165,250,.28)] animate-float" />
+        <div className="absolute right-[16%] top-[28%] h-3 w-3 rounded-full bg-violet-400/45 shadow-[0_0_0_8px_rgba(167,139,250,.1),0_0_28px_rgba(167,139,250,.24)] animate-float" style={{ animationDelay: "1.2s" }} />
+        <div className="absolute bottom-[22%] left-[23%] h-2.5 w-2.5 rounded-full bg-emerald-400/45 shadow-[0_0_0_8px_rgba(52,211,153,.1),0_0_28px_rgba(52,211,153,.24)] animate-float" style={{ animationDelay: "2s" }} />
 
-        <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-          <div className="animate-reveal-up">
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/40 backdrop-blur-xl border border-white/60 text-[13px] font-semibold text-[#4a4a6a] mb-8">
-              <Sparkles className="w-3.5 h-3.5 text-[#2563eb]" />
-              科研型自适应学习智能体
-            </span>
-          </div>
-
-          <h1 className="font-display font-black text-[#0d0d1a] leading-[0.9] tracking-[-0.04em] mb-6">
-            <span className="block text-[clamp(64px,10vw,120px)] animate-reveal-up">
-              BIO
-            </span>
-            <span className="block text-[clamp(48px,7vw,88px)] animate-reveal-up-1">
-              MENTOR
-            </span>
-            <span className="block text-[clamp(36px,5vw,64px)] animate-reveal-up-2 text-[#1a1a2e]">
-              AGENT
-            </span>
+        <div className="relative z-10 text-center max-w-6xl mx-auto">
+          <h1 className="font-display font-black leading-[0.9] tracking-[-0.07em] text-[#101827] reveal-soft text-[clamp(56px,10vw,132px)] drop-shadow-[0_18px_54px_rgba(45,84,145,.12)]">
+            BioMentor Agent
           </h1>
-
-          <p className="text-lg md:text-xl text-[#4a4a6a] max-w-xl mx-auto leading-relaxed mb-10 animate-reveal-up-3">
-            以知识点为入口，融合课程知识、科研文献、产业案例、
-            多角色 AI 导师和生物专业工具
-          </p>
-
-          <div className="flex items-center justify-center gap-4 animate-reveal-up-4">
-            <Link href="/explore" className="btn-hero">
-              开始探索
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <button
-              onClick={() =>
-                document
-                  .getElementById("narrative")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="btn-hero-secondary"
-            >
-              了解更多
-              <ArrowDown className="w-4 h-4" />
-            </button>
+          <div className="mt-8 inline-flex rounded-full border border-white/90 bg-white/45 px-6 py-3 text-sm md:text-lg font-semibold tracking-[0.08em] text-[#33445f] shadow-[inset_0_1px_0_rgba(255,255,255,.86),0_14px_38px_rgba(70,110,180,.1)] backdrop-blur-2xl reveal-soft" style={{ animationDelay: ".35s" }}>
+            面向生命科学的智能学习平台
           </div>
+          <button
+            onClick={() => document.getElementById("modules")?.scrollIntoView({ behavior: "smooth" })}
+            className="absolute left-1/2 -translate-x-1/2 -bottom-32 hidden md:inline-flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-[#748196] hover:text-[#111827] transition-colors"
+          >
+            探索学习系统 <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+          </button>
         </div>
       </section>
 
-      {/* NARRATIVE: 三层递进 */}
-      <section
-        id="narrative"
-        className="py-24 md:py-32 px-6 md:px-10 max-w-6xl mx-auto"
-      >
-        <div className="text-center mb-16">
-          <p className="section-title">学习架构</p>
-          <h2 className="section-heading">
-            从基础到前沿，
-            <br className="hidden md:block" />
-            三层递进式学习
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              icon: BookOpen,
-              title: "基础知识",
-              desc: "课程核心概念与理论体系，系统化掌握学科框架",
-              color: "text-[#2563eb]",
-              bg: "bg-[#eff6ff]",
-              border: "border-[#dbeafe]",
-            },
-            {
-              icon: Microscope,
-              title: "科研前沿",
-              desc: "最新文献追踪与实验方法，理解科研思维与技术创新",
-              color: "text-[#06b6d4]",
-              bg: "bg-[#ecfeff]",
-              border: "border-[#cffafe]",
-            },
-            {
-              icon: Building2,
-              title: "产业应用",
-              desc: "真实产业案例与转化路径，连接学术研究与产业实践",
-              color: "text-[#f59e0b]",
-              bg: "bg-[#fffbeb]",
-              border: "border-[#fef3c7]",
-            },
-          ].map((item, i) => (
-            <div
-              key={item.title}
-              className={`glass-card p-8 md:p-10 text-center animate-reveal-up`}
-              style={{ animationDelay: `${i * 0.1}s` }}
-            >
-              <div
-                className={`w-14 h-14 mx-auto mb-6 rounded-2xl ${item.bg} border ${item.border} flex items-center justify-center`}
-              >
-                <item.icon className={`w-6 h-6 ${item.color}`} />
-              </div>
-              <h3 className="font-display text-xl font-bold text-[#0d0d1a] mb-3">
-                {item.title}
-              </h3>
-              <p className="text-sm text-[#4a4a6a] leading-relaxed">
-                {item.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* AI MENTOR TEAM */}
-      <section className="py-24 md:py-32 px-6 md:px-10 max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <p className="section-title">多角色 AI 导师</p>
-          <h2 className="section-heading">
-            你的专属科研导师团队
-          </h2>
-          <p className="text-[#4a4a6a] mt-4 max-w-lg mx-auto">
-            三位 AI 导师各司其职，从课程学习到科研实战，全程陪伴你的成长
-          </p>
-        </div>
-
-        <div className="glass-card-iridescent p-8 md:p-12 max-w-3xl mx-auto">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            {["课程导师", "科研导师", "产业导师"].map((role, i) => (
-              <button
-                key={role}
-                className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  i === 0
-                    ? "bg-[#0d0d1a] text-white"
-                    : "bg-white/40 text-[#4a4a6a] hover:bg-white/70"
-                }`}
-              >
-                <Users className="w-4 h-4 inline mr-2" />
-                {role}
-              </button>
-            ))}
-          </div>
-          <div className="bg-[#f8f9fc] rounded-2xl p-6 md:p-8 border border-[#e8e8f0]">
-            <p className="text-[#4a4a6a] leading-relaxed">
-              <span className="font-semibold text-[#0d0d1a]">
-                你好，我是你的专属课程导师。
-              </span>
-              <br className="mb-2" />
-              让我们一起探索 CRISPR 基因编辑技术的分子机制。首先我会帮你理解 Cas9
-              蛋白的三维结构和功能域，然后我们通过文献阅读了解最新的碱基编辑器进展，
-              最后分析这项技术在农业育种中的产业应用。
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
-      <section className="py-20 px-6 md:px-10">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
-          {[
-            { value: 500, suffix: "+", label: "知识节点" },
-            { value: 200, suffix: "+", label: "科研案例" },
-            { value: 4, suffix: " 大", label: "生物工具" },
-            { value: 24, suffix: "/7", label: "AI 陪伴" },
-          ].map((stat) => (
-            <div key={stat.label} className="glass-card p-6 md:p-8 text-center">
-              <CountUp end={stat.value} suffix={stat.suffix} />
-              <p className="text-sm text-[#4a4a6a] mt-2 font-medium">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* FEATURE ENTRY */}
-      <section className="py-24 md:py-32 px-6 md:px-10 max-w-6xl mx-auto">
-        <div className="text-center mb-16">
+      <section id="modules" className="relative px-6 md:px-10 py-24 md:py-32 max-w-7xl mx-auto">
+        <div className="text-center mb-14">
           <p className="section-title">核心功能</p>
-          <h2 className="section-heading">
-            探索你的学习之旅
-          </h2>
+          <h2 className="section-heading">六个模块，组成完整学习入口</h2>
+          <p className="mt-4 text-brand-muted max-w-2xl mx-auto leading-relaxed">
+            保持清晰的六宫格结构：学习、研究、工具、案例、图谱和研讨各自独立，又能在学习路径中互相连接。
+          </p>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {[
-            {
-              href: "/explore",
-              title: "知识探索中心",
-              desc: "搜索知识点，三层内容展开，AI 导师实时讲解",
-              accent: "#2563eb",
-            },
-            {
-              href: "/research",
-              title: "科研实战训练营",
-              desc: "AI 引导完成文献调研、实验设计、数据分析",
-              accent: "#06b6d4",
-            },
-            {
-              href: "/tools",
-              title: "生物工具箱",
-              desc: "蛋白3D查看、质粒图谱、序列分析、通路探索",
-              accent: "#f59e0b",
-            },
-            {
-              href: "/seminar",
-              title: "学术研讨",
-              desc: "模拟学术会议与答辩，训练科研表达能力",
-              accent: "#7c3aed",
-            },
-            {
-              href: "/cases",
-              title: "产业案例库",
-              desc: "生物合成、基因治疗、CAR-T 等真实案例",
-              accent: "#059669",
-            },
-            {
-              href: "/knowledge-map",
-              title: "知识图谱浏览",
-              desc: "可视化学科知识网络，发现知识关联",
-              accent: "#dc2626",
-            },
-          ].map((feature) => (
-            <Link
-              key={feature.href}
-              href={feature.href}
-              className="glass-card group p-6 md:p-8 flex flex-col gap-3 cursor-pointer"
-            >
-              <div
-                className="w-2 h-2 rounded-full mb-2"
-                style={{ backgroundColor: feature.accent }}
-              />
-              <h3 className="font-display text-lg font-bold text-[#0d0d1a] group-hover:text-[#2563eb] transition-colors">
-                {feature.title}
-              </h3>
-              <p className="text-sm text-[#4a4a6a] leading-relaxed">
-                {feature.desc}
-              </p>
-              <span className="flex items-center gap-1 text-xs font-semibold text-[#2563eb] mt-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                进入
-                <ChevronRight className="w-3 h-3" />
-              </span>
-            </Link>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {modules.map((module, index) => {
+            const Icon = module.icon;
+            return (
+              <Link key={module.href} href={module.href} className="liquid-card group relative overflow-hidden p-6 min-h-[238px] reveal-soft" style={{ animationDelay: `${index * 0.06}s` }}>
+                <div className="absolute -right-12 -top-12 h-36 w-36 rounded-[45%_55%_62%_38%/45%_48%_52%_55%] blur-[2px] opacity-20 transition-opacity group-hover:opacity-30" style={{ background: module.accent }} />
+                <div className="relative z-10 flex h-full flex-col">
+                  <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/90 bg-white/60 shadow-[0_10px_24px_rgba(67,106,160,.09)]" style={{ color: module.accent }}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display text-2xl font-extrabold tracking-[-0.04em] text-[#111827] mb-3">{module.title}</h3>
+                  <p className="text-sm leading-relaxed text-brand-muted mb-5">{module.desc}</p>
+                  <div className="mt-auto flex flex-wrap gap-2">
+                    {module.tags.map((tag) => (
+                      <span key={tag} className="rounded-full border border-white/80 bg-white/45 px-2.5 py-1 text-[11px] font-bold text-[#64708a]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="mt-5 inline-flex items-center gap-1 text-xs font-bold opacity-0 transition-all group-hover:opacity-100" style={{ color: module.accent }}>
+                    进入 <ChevronRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="border-t border-black/5 py-12 px-6 md:px-10">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-md bg-[#0d0d1a] flex items-center justify-center">
-              <Sparkles className="w-3 h-3 text-white" />
-            </span>
-            <span className="font-display text-sm font-bold text-[#0d0d1a]">
-              BioMentor Agent
-            </span>
-            <span className="text-xs text-[#8e8eaa] ml-2">智造学伴</span>
+      <section className="px-6 md:px-10 py-20 md:py-28 max-w-7xl mx-auto">
+        <div className="liquid-card p-6 md:p-10 overflow-hidden relative">
+          <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl" />
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[0.9fr_1.4fr] gap-8 items-center">
+            <div>
+              <p className="section-title">学习体验</p>
+              <h2 className="section-heading">一个知识点，可以被展开成完整学习路径</h2>
+              <p className="mt-5 text-brand-muted leading-relaxed">
+                BioMentor Agent 不只是给出答案，而是把概念、关系、任务、工具和案例连接起来。
+              </p>
+              <div className="mt-7 rounded-3xl border border-white/80 bg-white/50 p-5 backdrop-blur-xl">
+                <div className="text-xs font-bold text-brand-faint mb-2">示例知识点</div>
+                <div className="font-display text-3xl font-black tracking-[-0.04em] text-[#111827]">CRISPR-Cas9</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {expansionSteps.map((step, index) => (
+                <div key={step.title} className="rounded-3xl border border-white/80 bg-white/50 p-5 shadow-[0_12px_34px_rgba(67,106,160,.08)] backdrop-blur-xl">
+                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-2xl bg-[#111827] text-sm font-black text-white">{index + 1}</div>
+                  <h3 className="font-display text-lg font-extrabold text-[#111827] mb-2">{step.title}</h3>
+                  <p className="text-sm leading-relaxed text-brand-muted">{step.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-xs text-[#4a4a6a]">
-            <span>Next.js + FastAPI</span>
-            <span>Three.js</span>
-            <span>Cytoscape.js</span>
+        </div>
+      </section>
+
+      <section className="px-6 md:px-10 py-20 md:py-28 max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <p className="section-title">产品价值</p>
+          <h2 className="section-heading">它不是普通知识库</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {valueCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.title} className="liquid-card p-7">
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#111827] text-white shadow-[0_14px_32px_rgba(17,24,39,.16)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-display text-xl font-extrabold text-[#111827] mb-3">{card.title}</h3>
+                <p className="text-sm leading-relaxed text-brand-muted">{card.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <footer className="border-t border-black/5 px-6 md:px-10 py-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5 text-sm text-brand-muted">
+          <div className="flex items-center gap-2.5">
+            <span className="h-8 w-8 rounded-2xl bg-[#111827] flex items-center justify-center"><Sparkles className="h-3.5 w-3.5 text-white" /></span>
+            <span className="font-display font-extrabold text-[#111827]">BioMentor Agent</span>
+            <span>面向生命科学的智能学习平台</span>
           </div>
-          <p className="text-xs text-[#8e8eaa]">
-            &copy; 2025 BioMentor Agent
-          </p>
+          <div className="flex flex-wrap justify-center gap-4 text-xs font-semibold">
+            {modules.map((module) => <Link key={module.href} href={module.href} className="hover:text-[#111827]">{module.title}</Link>)}
+          </div>
         </div>
       </footer>
     </>
