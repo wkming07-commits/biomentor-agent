@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, FlaskConical, ChevronRight } from "lucide-react";
+import { BookOpen, FlaskConical, ChevronRight } from "lucide-react";
 import type { IndustryCase } from "@/data/industryCases";
 
 interface IndustryCaseCardProps {
@@ -19,51 +19,42 @@ export function IndustryCaseCard({ caseData, onViewKnowledge }: IndustryCaseCard
   const c = caseData;
 
   return (
-    <div className="glass-card rounded-2xl p-6 flex flex-col group cursor-pointer h-full">
-      <div className="flex items-center justify-between mb-3">
-        <span className="badge badge-electric">{c.industryDirection}</span>
+    <div className="glass-card rounded-2xl p-5 flex flex-col group cursor-pointer h-full">
+      <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-2">
+          <span className="badge badge-electric text-[10px]">{c.industryDirection}</span>
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${evidenceColors[c.evidenceLevel] || "bg-gray-50 text-gray-600"}`}>
             {c.evidenceLevel}证据
           </span>
-          <ArrowUpRight className="w-4 h-4 text-brand-muted group-hover:text-accent-electric transition-colors opacity-0 group-hover:opacity-100" />
         </div>
+        <span className="text-[10px] text-brand-faint font-body">{c.sourceType}</span>
       </div>
 
-      <h3 className="font-display text-lg font-bold text-brand-ink mb-1 group-hover:text-accent-electric transition-colors">
+      <h3 className="font-display text-base font-bold text-brand-ink mb-1 group-hover:text-blue-600 transition-colors leading-snug">
         {c.title}
       </h3>
-      <p className="text-xs text-brand-faint font-body mb-3">{c.subtitle}</p>
+      <p className="text-[11px] text-brand-faint font-body mb-3 leading-relaxed">{c.subtitle}</p>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {c.relatedKnowledgePoints.slice(0, 4).map((kp, i) => (
+        {c.relatedKnowledgePoints.slice(0, 3).map((kp, i) => (
           <span key={i} className="badge badge-cyan text-[10px]">{kp}</span>
         ))}
-        {c.relatedKnowledgePoints.length > 4 && (
-          <span className="badge bg-brand-ink/5 text-brand-faint text-[10px]">
-            +{c.relatedKnowledgePoints.length - 4}
+        {c.relatedKnowledgePoints.length > 3 && (
+          <span className="text-[10px] text-brand-faint font-body self-center">
+            +{c.relatedKnowledgePoints.length - 3}
           </span>
         )}
       </div>
 
       <div className="space-y-2 mb-4 flex-1">
         <div className="text-xs text-brand-muted font-body leading-relaxed">
-          <span className="font-semibold text-brand-ink">核心问题：</span>
-          {c.coreProblem}
-        </div>
-        <div className="text-xs text-brand-muted font-body leading-relaxed">
-          <span className="font-semibold text-brand-ink">应用价值：</span>
-          {c.applicationValue.length > 80 ? c.applicationValue.slice(0, 80) + "..." : c.applicationValue}
+          <span className="font-semibold text-brand-ink">核心问题</span>
+          <span className="block mt-0.5 text-[11px]">{c.coreProblem}</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 mb-1">
-        <span className="text-[10px] text-brand-faint font-body uppercase tracking-wider">来源：</span>
-        <span className="text-[10px] font-semibold text-brand-muted">{c.sourceType}</span>
-      </div>
-
-      <div className="flex items-center gap-1 mb-4">
-        <span className="text-[10px] text-brand-faint font-body uppercase tracking-wider">能力：</span>
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
+        <span className="text-[10px] text-brand-faint font-body uppercase tracking-wider">所需能力</span>
         {c.requiredAbilities.map((ab, i) => (
           <span key={i} className="badge badge-amber text-[10px]">{ab}</span>
         ))}
@@ -72,17 +63,17 @@ export function IndustryCaseCard({ caseData, onViewKnowledge }: IndustryCaseCard
       <div className="flex items-center gap-2 pt-3 border-t border-black/5">
         <button
           onClick={onViewKnowledge}
-          className="flex items-center gap-1.5 text-xs font-medium text-brand-muted hover:text-accent-electric transition-colors py-1.5 px-3 rounded-lg hover:bg-accent-electric/5 cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-medium text-brand-muted hover:text-blue-600 transition-colors py-1.5 px-3 rounded-lg hover:bg-blue-50/60 cursor-pointer"
         >
           <BookOpen className="w-3.5 h-3.5" />
-          查看关联知识点
+          关联知识点
         </button>
         <Link
           href="/research"
-          className="flex items-center gap-1.5 text-xs font-medium text-accent-electric hover:text-accent-electric/80 transition-colors py-1.5 px-3 rounded-lg hover:bg-accent-electric/5 ml-auto"
+          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors py-1.5 px-3 rounded-lg hover:bg-blue-50/60 ml-auto"
         >
           <FlaskConical className="w-3.5 h-3.5" />
-          进入科研实战
+          进入案例
           <ChevronRight className="w-3 h-3" />
         </Link>
       </div>
