@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import engine, Base
 from app.routers import (
+    bio_tools,
     courses,
     materials,
     questions,
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(courses.router)
+app.include_router(bio_tools.router)
 app.include_router(materials.router)
 app.include_router(questions.router)
 app.include_router(quiz.router)

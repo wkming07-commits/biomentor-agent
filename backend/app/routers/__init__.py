@@ -1,4 +1,5 @@
 from app.routers import (
+    bio_tools,
     courses,
     materials,
     questions,
