@@ -1,428 +1,546 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Search,
-  Microscope,
-  BookOpen,
-  FlaskConical,
-  Building2,
-  Sparkles,
-  ArrowUpRight,
+  Upload,
+  Image,
+  FileText,
+  X,
   Loader2,
   Send,
   User,
   Bot,
+  BookOpen,
   Lightbulb,
-  FileText,
-  GraduationCap,
-  X,
+  Sparkles,
+  FileQuestion,
+  ChevronRight,
+  Microscope,
 } from "lucide-react";
-
-type TabKey = "course" | "research" | "industry";
+import { useRouter } from "next/navigation";
 
 interface Message {
   role: "user" | "ai";
   content: string;
 }
 
-const suggestionChips = [
-  "CRISPR-Cas9",
-  "细胞周期调控",
-  "代谢工程",
-  "蛋白质结构",
-  "基因表达调控",
-];
+interface UploadedFile {
+  name: string;
+  type: string;
+  size: string;
+  content: string;
+}
 
-const mockCourseContent = {
-  title: "CRISPR-Cas9 基因编辑技术",
-  concepts: [
-    "CRISPR 序列的发现与结构",
-    "Cas9 核酸内切酶的作用机制",
-    "gRNA 设计与靶向特异性",
-    "NHEJ 与 HDR 修复通路",
-    "基因敲除与敲入实验策略",
-  ],
-};
+interface KnowledgePoint {
+  id: number;
+  title: string;
+  content: string;
+}
 
-const mockResearchContent = {
-  papers: [
-    {
-      title: "Prime Editing: A New Era of Precision Genome Engineering",
-      journal: "Nature Reviews Genetics",
-      year: 2024,
-    },
-    {
-      title: "CRISPR-Cas9 Mediated Base Editing in Human Embryos",
-      journal: "Cell",
-      year: 2023,
-    },
-    {
-      title: "High-Throughput Functional Genomics Using CRISPR Screens",
-      journal: "Science",
-      year: 2023,
-    },
-  ],
-};
+interface StudyTip {
+  id: number;
+  title: string;
+  content: string;
+}
 
-const mockIndustryContent = {
-  cases: [
-    {
-      company: "CRISPR Therapeutics",
-      application: "CTX001 用于镰刀型细胞贫血症和β-地中海贫血的基因治疗",
-      stage: "已获批上市",
-    },
-    {
-      company: "Intellia Therapeutics",
-      application: "NTLA-2001 体内CRISPR疗法治疗转甲状腺素蛋白淀粉样变性",
-      stage: "III期临床",
-    },
-    {
-      company: "Editas Medicine",
-      application: "EDIT-101 治疗Leber先天性黑矇10型 (LCA10)",
-      stage: "II期临床",
-    },
-  ],
-};
-
-const demoConversation: Message[] = [
-  {
-    role: "ai",
-    content: "你好！我是你的AI导师。你刚才搜索了 CRISPR-Cas9，这是一个革命性的基因编辑技术。你想深入了解哪个方面呢？",
-  },
-  {
-    role: "user",
-    content: "CRISPR-Cas9 的核心机制是什么？",
-  },
-  {
-    role: "ai",
-    content: "CRISPR-Cas9 系统由两部分组成：Cas9 核酸内切酶和单链引导 RNA（sgRNA）。sgRNA 通过碱基互补配对识别目标 DNA 序列，Cas9 蛋白在 PAM 序列（NGG）上游进行双链切割。细胞随后通过 NHEJ 或 HDR 途径修复断裂，实现基因敲除或精准编辑。",
-  },
-];
+interface SummaryData {
+  knowledgePoints: KnowledgePoint[];
+  keywords: string[];
+  studyTips: StudyTip[];
+}
 
 export default function ExplorePage() {
-  const [query, setQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>("course");
+  const router = useRouter();
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "ai", content: "你好，我是 BioMentor AI 导师，请上传教材开始学习。" },
+  ]);
   const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>(demoConversation);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSearch = () => {
-    if (!query.trim()) return;
-    setIsSearching(true);
-    setHasSearched(false);
-    setTimeout(() => {
-      setIsSearching(false);
-      setHasSearched(true);
-    }, 1200);
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSearch();
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      if (file.type.startsWith("image")) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+            }
+            resolve("图片内容提取中...（实际应用中会使用OCR技术）");
+          };
+          img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type === "application/pdf") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve("PDF内容提取中...（实际应用中会使用PDF解析库）");
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve(e.target?.result as string);
+        };
+        reader.readAsText(file);
+      }
+    });
   };
 
-  const handleChipClick = (chip: string) => {
-    setQuery(chip);
-    setIsSearching(true);
-    setHasSearched(false);
-    setTimeout(() => {
-      setIsSearching(false);
-      setHasSearched(true);
-    }, 1000);
+  const handleFileUpload = useCallback(async (files: FileList | null) => {
+    if (!files) return;
+    setIsAnalyzing(true);
+
+    try {
+      const newFiles = await Promise.all(
+        Array.from(files).map(async (file) => {
+          const content = await extractTextFromFile(file);
+          return {
+            name: file.name,
+            type: file.type.startsWith("image") ? "image" : "pdf",
+            size: formatFileSize(file.size),
+            content,
+          };
+        })
+      );
+
+      setUploadedFiles(newFiles);
+      const allContent = newFiles.map((f) => f.content).join("\n\n");
+      const fileName = newFiles.length > 0 ? newFiles[0].name : "";
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: allContent, fileName }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setSummary(result.data);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "ai",
+            content: "教材已解析完成！我已为你提取了核心知识点和学习建议。",
+          },
+        ]);
+      } else {
+        throw new Error(result.error || "分析失败");
+      }
+    } catch (error) {
+      console.error("分析失败:", error);
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: "抱歉，教材解析失败，请重试。" },
+      ]);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add("border-blue-500");
   };
 
-  const handleSendChat = () => {
-    if (!chatInput.trim()) return;
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("border-blue-500");
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("border-blue-500");
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    if (uploadedFiles.length === 1) {
+      setSummary(null);
+    }
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+
     const userMsg: Message = { role: "user", content: chatInput.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setChatInput("");
-    setTimeout(() => {
-      const aiMsg: Message = {
-        role: "ai",
-        content:
-          "这是一个很好的问题！让我来详细解答。Cas9 蛋白的 HNH 和 RuvC 结构域分别切割目标链和非目标链，确保双链断裂的高效性。PAM 序列（5'-NGG-3'）是 Cas9 识别和结合的必要条件。",
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-    }, 800);
+    setIsChatLoading(true);
+
+    try {
+      const contextText = summary 
+        ? summary.knowledgePoints.map(kp => `${kp.title}: ${kp.content}`).join("\n")
+        : "暂无教材内容";
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: chatInput.trim(),
+          context: contextText,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setMessages((prev) => [...prev, { role: "ai", content: result.message }]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "ai", content: "抱歉，我无法回答这个问题。" },
+        ]);
+      }
+    } catch (error) {
+      console.error("聊天失败:", error);
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: "抱歉，网络错误，请重试。" },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
-  const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-    { key: "course", label: "课程基础", icon: <BookOpen className="w-4 h-4" /> },
-    { key: "research", label: "科研前沿", icon: <Microscope className="w-4 h-4" /> },
-    { key: "industry", label: "产业应用", icon: <Building2 className="w-4 h-4" /> },
-  ];
+  const handleGenerateQuiz = async () => {
+    if (!summary || isGeneratingQuiz) return;
+
+    setIsGeneratingQuiz(true);
+
+    try {
+      const contentText = summary 
+        ? summary.knowledgePoints.map(kp => `${kp.title}: ${kp.content}`).join("\n") + 
+          "\n\n关键词: " + summary.keywords.join(", ") +
+          "\n\n学习建议: " + summary.studyTips.map(st => st.content).join("\n")
+        : "";
+
+      const response = await fetch("/api/generate-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: contentText }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        localStorage.setItem("quizData", JSON.stringify(result.data));
+        router.push("/explore/quiz");
+      } else {
+        throw new Error(result.error || "生成练习题失败");
+      }
+    } catch (error) {
+      console.error("生成练习题失败:", error);
+      alert("生成练习题失败，请重试。");
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20">
-      <section className="max-w-6xl mx-auto pt-8 md:pt-16">
-        <div className="text-center mb-10">
-          <h1
-            className="font-display font-extrabold text-brand-ink leading-[1.1] tracking-[-0.03em] mb-3"
-            style={{ fontSize: "clamp(28px, 4vw, 48px)" }}
-          >
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
             知识探索中心
           </h1>
-          <p className="text-brand-muted text-base md:text-lg font-body max-w-xl mx-auto">
-            搜索任意生物知识点，获取从课程基础到科研前沿再到产业应用的三层递进内容
-          </p>
+          <p className="text-gray-600">上传教材图片或PDF，AI帮你总结知识要点、生成练习题、提供学习建议</p>
         </div>
 
-        <div className="max-w-2xl mx-auto mb-6">
-          <div className="relative">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-muted pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="搜索知识点，如 CRISPR、细胞周期、代谢通路..."
-              className="w-full h-14 pl-13 pr-14 rounded-2xl glass-card text-[15px] font-body text-brand-ink placeholder:text-brand-muted/50 outline-none focus:border-accent-electric/30 transition-all duration-300"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                className="absolute right-14 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-black/5 transition-colors"
-              >
-                <X className="w-4 h-4 text-brand-muted" />
-              </button>
-            )}
-            <button
-              onClick={handleSearch}
-              disabled={isSearching || !query.trim()}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-xl bg-brand-ink text-white disabled:opacity-30 transition-all duration-200 hover:bg-brand-ink/90"
+        <div className="glass-card rounded-2xl p-6 md:p-8 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Upload className="w-5 h-5 text-blue-500" />
+            <h3 className="font-semibold text-gray-800">上传教材资料</h3>
+            <span className="text-sm text-gray-500">支持图片（PNG/JPG/JPEG）和PDF文件，最大50MB</span>
+          </div>
+          
+          <div className="flex gap-4">
+            <div
+              className="flex-1 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
             >
-              {isSearching ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ArrowUpRight className="w-4 h-4" />
-              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/png,image/jpeg,image/jpg,application/pdf"
+                multiple
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                  <Upload className="w-6 h-6 text-blue-500" />
+                </div>
+                <p className="text-gray-700 font-medium">点击或拖拽上传文件</p>
+                <p className="text-gray-400 text-sm">支持 PNG, JPG, JPEG, PDF</p>
+              </div>
+            </div>
+            
+            <button
+              className="flex flex-col items-center justify-center w-24 border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-blue-400 transition-colors cursor-pointer"
+            >
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+                <Image className="w-5 h-5 text-blue-500" />
+              </div>
+              <span className="text-gray-700 text-sm font-medium">拍照上传</span>
             </button>
           </div>
+
+          {uploadedFiles.length > 0 && (
+            <div className="mt-6 space-y-3">
+              {uploadedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 bg-white/50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    {file.type === "image" ? (
+                      <Image className="w-8 h-8 text-blue-500" />
+                    ) : (
+                      <FileText className="w-8 h-8 text-purple-500" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-800">{file.name}</p>
+                      <p className="text-sm text-gray-500">{file.size}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeFile(index)}
+                    className="p-2 hover:bg-red-100 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {!hasSearched && (
-          <div className="flex flex-wrap justify-center gap-2.5 max-w-2xl mx-auto mb-8">
-            {suggestionChips.map((chip) => (
-              <button
-                key={chip}
-                onClick={() => handleChipClick(chip)}
-                className="px-4 py-2 rounded-xl glass-card text-sm font-medium font-body text-brand-muted hover:text-brand-ink hover:border-accent-electric/20 transition-all duration-200 cursor-pointer"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="glass-card rounded-2xl p-6 md:p-8 h-[930px] overflow-hidden flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-5 h-5 text-blue-500" />
+                <h2 className="font-semibold text-gray-800">AI知识总结</h2>
+                <span className="text-sm text-gray-500">基于教材内容的智能提炼</span>
+              </div>
 
-        {isSearching && (
-          <div className="max-w-3xl mx-auto mt-10 text-center">
-            <div className="glass-card rounded-2xl p-12 flex flex-col items-center gap-4">
-              <Loader2 className="w-8 h-8 text-accent-electric animate-spin" />
-              <p className="text-brand-muted font-body">正在搜索相关知识内容...</p>
-            </div>
-          </div>
-        )}
-
-        {hasSearched && !isSearching && (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-6xl mx-auto mt-8">
-            <div className="lg:col-span-3">
-              <div className="glass-card rounded-2xl p-6 md:p-8">
-                <h2 className="font-display text-xl font-bold text-brand-ink mb-2">
-                  {mockCourseContent.title}
-                </h2>
-                <p className="text-sm text-brand-muted mb-6 font-body">
-                  共检索到 3 个知识模块，覆盖课程、科研与产业三个维度
-                </p>
-
-                <div className="flex border-b border-black/5 mb-6 overflow-x-auto scrollbar-none">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium font-body whitespace-nowrap border-b-2 transition-all duration-200 cursor-pointer ${
-                        activeTab === tab.key
-                          ? "border-brand-ink text-brand-ink"
-                          : "border-transparent text-brand-muted hover:text-brand-ink"
-                      }`}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                    </button>
-                  ))}
+              {isAnalyzing ? (
+                <div className="flex flex-col items-center justify-center flex-1">
+                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+                  <p className="text-gray-600">AI正在分析教材内容...</p>
                 </div>
-
-                {activeTab === "course" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <GraduationCap className="w-5 h-5 text-accent-electric" />
-                      <span className="text-sm font-semibold font-body text-brand-ink">
-                        核心概念
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {mockCourseContent.concepts.map((concept, i) => (
-                        <div
-                          key={i}
-                          className="flex items-start gap-3 p-4 rounded-xl bg-white/40 border border-black/5 hover:border-accent-electric/15 transition-all duration-200"
+              ) : summary ? (
+                <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-3">
+                      <Sparkles className="w-5 h-5 text-yellow-500" />
+                      核心知识点
+                    </h3>
+                    <ul className="space-y-2">
+                      {summary.knowledgePoints.map((point, index) => (
+                        <li
+                          key={point.id || index}
+                          className="flex items-start gap-2 p-3 bg-white/50 rounded-lg"
                         >
-                          <span className="w-6 h-6 rounded-lg bg-accent-electric/10 text-accent-electric flex items-center justify-center text-xs font-bold font-display shrink-0 mt-0.5">
-                            {i + 1}
+                          <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
+                            {index + 1}
                           </span>
-                          <span className="text-sm font-body text-brand-ink leading-relaxed">
-                            {concept}
-                          </span>
-                        </div>
+                          <div>
+                            <p className="font-medium text-gray-800">{point.title}</p>
+                            <p className="text-gray-700 text-sm">{point.content}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-3">
+                      <Microscope className="w-5 h-5 text-indigo-600" />
+                      重点概念
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {summary.keywords.map((keyword, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-100 text-indigo-700 rounded-full text-sm font-medium border border-indigo-200"
+                        >
+                          {keyword}
+                        </span>
                       ))}
                     </div>
                   </div>
-                )}
 
-                {activeTab === "research" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <FlaskConical className="w-5 h-5 text-accent-cyan" />
-                      <span className="text-sm font-semibold font-body text-brand-ink">
-                        最新研究论文
-                      </span>
-                    </div>
-                    {mockResearchContent.papers.map((paper, i) => (
-                      <a
-                        key={i}
-                        href="#"
-                        className="flex items-start justify-between gap-4 p-4 rounded-xl bg-white/40 border border-black/5 hover:border-accent-cyan/20 transition-all duration-200 group block no-underline"
-                      >
-                        <div>
-                          <h3 className="text-sm font-semibold font-body text-brand-ink group-hover:text-accent-electric transition-colors mb-1">
-                            {paper.title}
-                          </h3>
-                          <p className="text-xs text-brand-muted font-body">
-                            {paper.journal} · {paper.year}
-                          </p>
-                        </div>
-                        <ArrowUpRight className="w-4 h-4 text-brand-muted group-hover:text-accent-electric shrink-0 mt-0.5 transition-colors" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === "industry" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Building2 className="w-5 h-5 text-accent-amber" />
-                      <span className="text-sm font-semibold font-body text-brand-ink">
-                        产业案例
-                      </span>
-                    </div>
-                    {mockIndustryContent.cases.map((c, i) => (
-                      <div
-                        key={i}
-                        className="p-4 rounded-xl bg-white/40 border border-black/5 hover:border-accent-amber/20 transition-all duration-200"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold font-body text-brand-ink">
-                            {c.company}
-                          </span>
-                          <span className="badge badge-amber">{c.stage}</span>
-                        </div>
-                        <p className="text-sm text-brand-muted font-body leading-relaxed">
-                          {c.application}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="lg:col-span-2">
-              <div className="glass-card-iridescent rounded-2xl p-5 md:p-6 flex flex-col h-full min-h-[460px]">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
                   <div>
-                    <h3 className="font-display font-bold text-sm text-brand-ink">
-                      AI导师对话
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-3">
+                      <Lightbulb className="w-5 h-5 text-orange-500" />
+                      学习建议
                     </h3>
-                    <p className="text-xs text-brand-muted font-body">实时解答你的疑问</p>
+                    <ul className="space-y-3">
+                      {summary.studyTips.map((tip, index) => (
+                        <li
+                          key={tip.id || index}
+                          className="flex items-start gap-3 p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-blue-100"
+                        >
+                          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Lightbulb className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800 mb-1">{tip.title}</p>
+                            <p className="text-gray-600 text-sm leading-relaxed">{tip.content}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center flex-1 text-gray-400">
+                  <BookOpen className="w-16 h-16 mb-4 opacity-50" />
+                  <p className="text-center">
+                    上传教材后，AI 将自动生成知识总结
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1 max-h-[340px]">
-                  {messages.map((msg, i) => (
+          <div className="lg:col-span-1">
+            <div className="glass-card rounded-2xl p-5 md:p-6 flex flex-col h-[930px] sticky top-[calc(var(--nav-height)+2rem)]">
+              <div className="flex items-center gap-2 mb-4">
+                <Bot className="w-5 h-5 text-blue-500" />
+                <h2 className="font-semibold text-gray-800">BioMentor AI 导师</h2>
+                <span className="text-sm text-gray-500">随时解答你的疑问</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex gap-3 ${
+                      message.role === "user" ? "flex-row-reverse" : ""
+                    }`}
+                  >
                     <div
-                      key={i}
-                      className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        message.role === "user"
+                          ? "bg-blue-500 text-white"
+                          : "bg-gradient-to-br from-indigo-500 to-purple-500 text-white"
+                      }`}
+                    >
+                      {message.role === "user" ? (
+                        <User className="w-4 h-4" />
+                      ) : (
+                        <Bot className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div
+                      className={`max-w-[80%] ${
+                        message.role === "user" ? "text-right" : ""
+                      }`}
                     >
                       <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                          msg.role === "ai"
-                            ? "bg-gradient-to-br from-accent-electric to-accent-cyan"
-                            : "bg-brand-ink"
+                        className={`inline-block px-4 py-2 rounded-2xl ${
+                          message.role === "user"
+                            ? "bg-blue-500 text-white rounded-tr-sm"
+                            : "bg-white/80 text-gray-800 rounded-tl-sm shadow-sm"
                         }`}
                       >
-                        {msg.role === "ai" ? (
-                          <Bot className="w-3.5 h-3.5 text-white" />
-                        ) : (
-                          <User className="w-3.5 h-3.5 text-white" />
-                        )}
-                      </div>
-                      <div
-                        className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm font-body leading-relaxed ${
-                          msg.role === "ai"
-                            ? "bg-white/60 border border-black/5 rounded-tl-md text-brand-ink"
-                            : "bg-brand-ink text-white rounded-tr-md"
-                        }`}
-                      >
-                        {msg.content}
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       </div>
                     </div>
-                  ))}
-                  <div ref={chatEndRef} />
-                </div>
+                  </div>
+                ))}
+                {isChatLoading && (
+                  <div className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="bg-white/80 px-4 py-2 rounded-2xl rounded-tl-sm">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
 
+              <div className="mt-4 pt-4 border-t border-gray-200/50">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSendChat()}
-                    placeholder="向AI导师提问..."
-                    className="flex-1 h-10 px-4 rounded-xl bg-white/40 border border-black/5 text-sm font-body text-brand-ink placeholder:text-brand-muted/50 outline-none focus:border-accent-electric/20 transition-all duration-200"
+                    placeholder="输入你的问题..."
+                    className="flex-1 px-4 py-2.5 bg-white/80 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                    disabled={isChatLoading}
                   />
                   <button
                     onClick={handleSendChat}
-                    disabled={!chatInput.trim()}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand-ink text-white disabled:opacity-30 transition-all duration-200 hover:bg-brand-ink/90 cursor-pointer"
+                    disabled={!chatInput.trim() || isChatLoading}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="w-5 h-5" />
                   </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {!hasSearched && !isSearching && (
-          <div className="max-w-3xl mx-auto mt-16 text-center">
-            <div className="glass-card rounded-2xl p-10">
-              <Lightbulb className="w-10 h-10 text-accent-amber mx-auto mb-4" />
-              <h3 className="font-display text-lg font-bold text-brand-ink mb-2">
-                开始探索生物知识世界
-              </h3>
-              <p className="text-sm text-brand-muted font-body max-w-md mx-auto">
-                输入任意生物知识点，AI将为你构建从基础概念到前沿应用的全景知识图谱
-              </p>
-            </div>
+        {summary && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={handleGenerateQuiz}
+              disabled={isGeneratingQuiz}
+              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 text-white rounded-2xl font-semibold text-lg hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {isGeneratingQuiz ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  <FileQuestion className="w-6 h-6" />
+                  一键生成练习题
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
