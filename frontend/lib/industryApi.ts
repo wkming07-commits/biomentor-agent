@@ -55,19 +55,30 @@ export async function searchIndustryCases(query: string): Promise<IndustryCase[]
 /**
  * 获取产业综合问答
  *
- * TODO: 后期接入真实 RAG API
- *  - GET /api/industry/answer?query=xxx
- *  - 后端 RAG 整合 PubMed、产业数据库、文献证据卡片
+ * 优先调用服务端 API Route (POST /api/industry/answer)
+ * 如果 API Key 未配置或请求失败，自动 fallback 到本地 mock
  *
- * 可能的真实 API 方向：
+ * 后续可升级为 RAG 架构：
  *  - PubMed / NCBI E-utilities：文献检索
  *  - 后端向量数据库（Milvus/Pinecone）：语义检索
  *  - LLM + RAG：生成带来源引用的回答
  */
 export async function getIndustryAnswer(query: string): Promise<IndustryAnswer> {
-  // TODO: 替换为真实 API 调用
-  // const data = await apiFetch<IndustryAnswer>(`/api/industry/answer?query=${encodeURIComponent(query)}`);
-  // if (data) return data;
+  try {
+    const response = await fetch("/api/industry/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (!data.error) {
+        return data as IndustryAnswer;
+      }
+    }
+  } catch {
+    // API 不可达，静默 fallback 到 mock
+  }
   return getMockAnswer(query);
 }
 

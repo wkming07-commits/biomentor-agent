@@ -31,14 +31,26 @@ export interface IndustryCase {
   references: Reference[];
 }
 
+export interface MatchCase {
+  id: string;
+  title: string;
+  reason: string;
+}
+
 export interface IndustryAnswer {
   query: string;
+  answer?: string;
   relatedKnowledgePoints: string[];
+  matchedCases?: MatchCase[];
   researchFrontiers: string[];
   industryApplications: string[];
   abilityDirections: string[];
+  requiredAbilities?: string[];
   recommendedKeywords: string[];
   researchTasks: string[];
+  nextTasks?: string[];
+  sourceScope?: "based_on_local_cases" | "extended_reasoning" | "no_direct_match";
+  disclaimer?: string;
 }
 
 export interface AbilityMapping {
@@ -346,5 +358,32 @@ function buildMockAnswer(query: string): IndustryAnswer {
 }
 
 export function getMockAnswer(query: string): IndustryAnswer {
-  return buildMockAnswer(query.trim());
+  const answer = buildMockAnswer(query.trim());
+
+  const lower = query.toLowerCase();
+  const matched: MatchCase[] = industryCases
+    .filter((c) => {
+      return (
+        c.title.toLowerCase().includes(lower) ||
+        c.industryDirection.toLowerCase().includes(lower) ||
+        c.relatedKnowledgePoints.some((k) => k.toLowerCase().includes(lower)) ||
+        c.recommendedKeywords.some((k) => k.toLowerCase().includes(lower))
+      );
+    })
+    .slice(0, 3)
+    .map((c) => ({
+      id: c.id,
+      title: c.title,
+      reason: `匹配相关知识点：${c.relatedKnowledgePoints.slice(0, 2).join("、")}`,
+    }));
+
+  return {
+    ...answer,
+    answer: `根据当前产业案例库，为您匹配到 ${matched.length} 个相关案例及相关知识点和科研方向。`,
+    matchedCases: matched,
+    requiredAbilities: answer.abilityDirections,
+    nextTasks: answer.researchTasks,
+    sourceScope: matched.length > 0 ? "based_on_local_cases" : "extended_reasoning",
+    disclaimer: "本回答基于当前产业案例库自动生成，用于课程学习和科研训练，不构成医疗或临床建议。",
+  };
 }

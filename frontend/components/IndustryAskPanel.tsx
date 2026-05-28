@@ -1,38 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Sparkles, RefreshCw, BookOpen, Lightbulb, Target, Compass, Search, Dna } from "lucide-react";
+import { Send, Sparkles, RefreshCw, BookOpen, Lightbulb, Target, Compass, Search, Dna, Info, FileText, Building2 } from "lucide-react";
 import type { IndustryAnswer } from "@/data/industryCases";
+
+const QUICK_TAGS = [
+  "mRNA疫苗为什么需要LNP？",
+  "CAR-T涉及哪些知识？",
+  "Venetoclax和BCL-2的关系？",
+  "细胞凋亡有哪些产业应用？",
+  "CRISPR基因编辑治疗现状",
+];
 
 interface IndustryAskPanelProps {
   onQuery: (query: string) => Promise<IndustryAnswer>;
 }
 
-const quickTags = [
-  "细胞凋亡",
-  "CRISPR",
-  "蛋白质工程",
-  "合成生物学",
-  "分子诊断",
-  "细胞治疗",
-  "酶工程",
-];
-
 export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [answer, setAnswer] = useState<IndustryAnswer | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleQuery = async (query: string) => {
     const q = query.trim();
     if (!q) return;
     setLoading(true);
     setAnswer(null);
+    setError(null);
     try {
       const result = await onQuery(q);
       setAnswer(result);
     } catch {
-      setAnswer(null);
+      setError("暂时无法获取分析结果，请稍后重试。");
     } finally {
       setLoading(false);
     }
@@ -43,6 +43,24 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
     handleQuery(inputValue);
   };
 
+  const sourceScopeLabel = (scope?: string) => {
+    switch (scope) {
+      case "based_on_local_cases": return "基于本地案例库";
+      case "extended_reasoning": return "智能推理扩展";
+      case "no_direct_match": return "暂无直接匹配";
+      default: return "";
+    }
+  };
+
+  const sourceScopeColor = (scope?: string) => {
+    switch (scope) {
+      case "based_on_local_cases": return "bg-green-50 text-green-700";
+      case "extended_reasoning": return "bg-blue-50 text-blue-700";
+      case "no_direct_match": return "bg-amber-50 text-amber-700";
+      default: return "bg-gray-50 text-gray-600";
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="glass-card-iridescent rounded-2xl p-5 mb-6">
@@ -51,8 +69,10 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             <Dna className="w-4 h-4 text-blue-600" />
           </div>
           <div>
-            <h3 className="font-display text-sm font-bold text-brand-ink">智能知识导航</h3>
-            <p className="text-[10px] text-brand-faint font-body">输入知识点 → 科研方向 → 产业场景 → 岗位路径</p>
+            <h3 className="font-display text-sm font-bold text-brand-ink">产业案例智能问答</h3>
+            <p className="text-[10px] text-brand-faint font-body">
+              输入知识点、产业方向、产品技术或具体问题，系统将结合当前案例库生成相关知识点、科研前沿、产业应用和学习任务。
+            </p>
           </div>
         </div>
 
@@ -63,7 +83,7 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="输入知识点或产业方向，如：细胞凋亡、CRISPR、蛋白质设计、发酵工程"
+              placeholder="例如：mRNA 疫苗为什么需要 LNP？/ CAR-T 背后有哪些知识点？/ 细胞凋亡有哪些产业应用？"
               className="w-full h-12 pl-11 pr-28 rounded-2xl glass-card text-sm font-body text-brand-ink placeholder:text-brand-faint/50 outline-none focus:border-blue-400/30 transition-all duration-200"
             />
             <button
@@ -81,8 +101,9 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
           </div>
         </form>
 
-        <div className="flex flex-wrap gap-2 mt-3">
-          {quickTags.map((tag) => (
+        <p className="text-[10px] text-brand-faint font-body mt-3 mb-2">试试这些问题：</p>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_TAGS.map((tag) => (
             <button
               key={tag}
               type="button"
@@ -90,7 +111,7 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
                 setInputValue(tag);
                 handleQuery(tag);
               }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium font-body border border-black/5 bg-white/40 text-brand-muted hover:text-brand-ink hover:border-blue-400/20 hover:bg-white/70 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-full text-[11px] font-medium font-body border border-black/5 bg-white/40 text-brand-muted hover:text-brand-ink hover:border-blue-400/20 hover:bg-white/70 transition-all cursor-pointer"
             >
               {tag}
             </button>
@@ -107,6 +128,22 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
         </div>
       )}
 
+      {error && !loading && (
+        <div className="glass-card rounded-2xl p-6 text-center">
+          <Info className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+          <p className="text-sm text-brand-muted font-body mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              handleQuery(inputValue);
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+          >
+            重试
+          </button>
+        </div>
+      )}
+
       {answer && !loading && (
         <div className="glass-card rounded-2xl p-6 space-y-5 animate-reveal-up">
           <div className="flex items-center gap-2 pb-3 border-b border-black/5">
@@ -114,10 +151,44 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             <span className="font-display text-sm font-bold text-brand-ink">
               产业综合问答
             </span>
-            <span className="text-xs text-brand-faint font-mono ml-auto">
-              query: &quot;{answer.query}&quot;
-            </span>
+            {answer.sourceScope && (
+              <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ml-auto ${sourceScopeColor(answer.sourceScope)}`}>
+                {sourceScopeLabel(answer.sourceScope)}
+              </span>
+            )}
           </div>
+
+          {/* 综合回答 */}
+          {answer.answer && (
+            <div className="rounded-xl bg-gradient-to-r from-blue-50 to-cyan-50/30 p-4">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">综合回答</h4>
+              </div>
+              <p className="text-sm text-brand-muted font-body leading-relaxed">{answer.answer}</p>
+            </div>
+          )}
+
+          {/* 匹配产业案例 */}
+          {answer.matchedCases && answer.matchedCases.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">匹配产业案例</h4>
+              </div>
+              <div className="space-y-2">
+                {answer.matchedCases.map((mc, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/30">
+                    <span className="text-[10px] font-mono text-brand-faint shrink-0 mt-0.5">{mc.id}</span>
+                    <div>
+                      <span className="text-xs font-semibold text-brand-ink">{mc.title}</span>
+                      <p className="text-[11px] text-brand-muted font-body mt-0.5">{mc.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -163,11 +234,11 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
                 <Compass className="w-3.5 h-3.5 text-blue-500" />
-                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">岗位能力方向</h4>
+                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">训练能力</h4>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {answer.abilityDirections.map((ad, i) => (
-                  <span key={i} className="badge badge-amber text-[10px]">{ad}</span>
+                {(answer.requiredAbilities || answer.abilityDirections).map((ab, i) => (
+                  <span key={i} className="badge badge-amber text-[10px]">{ab}</span>
                 ))}
               </div>
             </div>
@@ -188,7 +259,7 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             <div>
               <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider mb-1.5">可进入的科研实战任务</h4>
               <ul className="space-y-1">
-                {answer.researchTasks.map((rt, i) => (
+                {(answer.nextTasks || answer.researchTasks).map((rt, i) => (
                   <li key={i} className="text-xs text-brand-muted font-body flex items-center gap-1.5">
                     <span className="w-4 h-4 rounded bg-blue-500/10 text-blue-600 text-[9px] font-bold flex items-center justify-center shrink-0">
                       {i + 1}
@@ -199,6 +270,12 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
               </ul>
             </div>
           </div>
+
+          {answer.disclaimer && (
+            <div className="pt-2 border-t border-black/5">
+              <p className="text-[10px] text-brand-faint font-body italic">{answer.disclaimer}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
