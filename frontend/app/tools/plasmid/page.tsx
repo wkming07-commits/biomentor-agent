@@ -1,9 +1,11 @@
-﻿"use client";
+"use client";
 
 import { ChangeEvent, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, FileText, SendHorizonal, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Upload } from "lucide-react";
 
-import { calculateNucleotideStats, circularFeaturePath, describeFeature, parseGenBankFeatures, plasmidExamples } from "@/lib/biotools.mjs";
+import { calculateNucleotideStats, circularFeaturePath, describeFeature, detectPlasmidInputKind, parseGenBankFeatures, plasmidExamples } from "@/lib/biotools.mjs";
+import BioMentorToolChat from "@/components/BioMentorToolChat";
+import type { ToolContextSummary } from "@/lib/tool-ai-types";
 
 type PlasmidKey = keyof typeof plasmidExamples;
 
@@ -18,7 +20,6 @@ export default function PlasmidPage() {
   const [uploadedName, setUploadedName] = useState("");
   const [uploadedText, setUploadedText] = useState("");
   const [selectedFeatureKey, setSelectedFeatureKey] = useState("");
-  const [chatInput, setChatInput] = useState("");
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizAnswer, setQuizAnswer] = useState("");
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -33,6 +34,39 @@ export default function PlasmidPage() {
   const plasmidLength = uploadedText ? Math.max(uploadedLength || 0, ...parsedFeatures.map((f) => f.end), 1) : basePlasmid.length;
   const selectedFeature = parsedFeatures.find((feature) => featureKey(feature) === selectedFeatureKey) || parsedFeatures[0];
   const isFastaLikeUpload = Boolean(uploadedText) && parsedFeatures.length === 1 && parsedFeatures[0]?.label === "uploaded sequence";
+
+  const inputKind = uploadedText ? detectPlasmidInputKind(uploadedText) : "builtin";
+
+  const aiContext: ToolContextSummary = useMemo(() => {
+    const kindLabel =
+      inputKind === "genbank" ? "GenBank" :
+      inputKind === "fasta" ? "FASTA" :
+      inputKind === "raw-sequence" ? "Raw Sequence" : "Unknown";
+
+    return {
+      title: uploadedName || basePlasmid.name,
+      subtitle: `${plasmidLength} bp · ${uploadedText ? kindLabel : "内置示例"}`,
+      facts: [
+        { label: "长度", value: `${plasmidLength} bp` },
+        { label: "宿主", value: basePlasmid.host },
+        { label: "元件数", value: `${parsedFeatures.length}` },
+        { label: "当前元件", value: selectedFeature?.label || "未选择" },
+      ],
+      highlights: [
+        uploadedName ? `上传文件: ${uploadedName}` : basePlasmid.notes,
+        selectedFeature ? describeFeature(selectedFeature) : "点击图谱或元件列表查看解释。",
+      ],
+      warnings:
+        inputKind === "fasta" || inputKind === "raw-sequence"
+          ? ["当前输入为未经注释的序列，无法推断 ori、抗性基因、promoter 等功能元件。如需完整元件注释，请上传 GenBank 格式文件。"]
+          : undefined,
+    };
+  }, [uploadedName, basePlasmid, plasmidLength, inputKind, uploadedText, parsedFeatures.length, selectedFeature]);
+
+  const aiContextKey = useMemo(
+    () => (uploadedText ? `upload-${uploadedName}-${uploadedText.slice(0, 80)}` : `builtin-${selectedPlasmid}`),
+    [uploadedText, uploadedName, selectedPlasmid],
+  );
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -154,24 +188,17 @@ export default function PlasmidPage() {
             </div>
           </main>
 
-          <aside className="liquid-card p-5 xl:sticky xl:top-24 h-fit">
-            <h2 className="font-display text-xl font-black text-[#111827] mb-4">实验设计讲解</h2>
-            <div className="space-y-4 text-sm text-brand-muted leading-relaxed">
-              <p>这张图谱适合先看复制起点、筛选标记、启动子和插入位点，再判断它适合克隆还是表达。</p>
-              <div className="rounded-3xl bg-white/45 border border-white/70 p-4">
-                <div className="font-semibold text-[#111827] mb-2">当前关注</div>
-                <p>{selectedFeature ? describeFeature(selectedFeature) : "点击任意元件查看作用。"}</p>
-              </div>
-              <div className="rounded-3xl bg-white/45 border border-white/70 p-4">
-                <div className="font-semibold text-[#111827] mb-2">引导问题</div>
-                <p>如果要表达一个外源蛋白，应优先检查哪些元件？插入片段会不会破坏读框或标签？</p>
-              </div>
-            </div>
-            <div className="mt-5 flex items-center gap-2">
-              <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="输入你的问题…" className="flex-1 px-4 py-2.5 rounded-2xl text-sm bg-white/60 border border-white/80 outline-none" />
-              <button className="p-2.5 rounded-2xl bg-[#111827] text-white"><SendHorizonal className="w-4 h-4" /></button>
-            </div>
-          </aside>
+          <BioMentorToolChat
+            tool="plasmid"
+            title="质粒图谱"
+            context={aiContext}
+            contextKey={aiContextKey}
+            quickQuestions={[
+              "这个质粒适合克隆还是表达？为什么？",
+              "这些元件各自的生物学功能是什么？",
+              "如何设计引物在这个质粒上插入目的基因？",
+            ]}
+          />
         </div>
 
         <div className="liquid-card overflow-hidden">

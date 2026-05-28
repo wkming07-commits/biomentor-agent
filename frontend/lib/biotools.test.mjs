@@ -5,14 +5,19 @@ import {
   buildAlphaFoldPdbUrl,
   buildRcsbPdbUrl,
   calculateNucleotideStats,
+  calculateProteinStats,
   describeFeature,
+  detectPlasmidInputKind,
   detectSequenceType,
   designPrimerPair,
   findOpenReadingFrames,
+  findRestrictionSites,
   getPathwayLearningPath,
+  matchLocalPathway,
   parseGenBankFeatures,
   resolveProteinQuery,
   reverseComplement,
+  sanitizeSequence,
   searchProteinCandidates,
   toCytoscapeElements,
   transcribeDnaToRna,
@@ -140,4 +145,50 @@ test("builds pathway learning paths from pathway catalog metadata", () => {
   const steps = getPathwayLearningPath("cell-cycle");
   assert.deepEqual(steps.slice(0, 3).map((step) => step.label), ["DNA 损伤", "p53", "p21"]);
   assert.match(steps[1].reason, /检查点|调控/);
+});
+
+test("sanitizeSequence strips headers, spaces, digits and lowercases", () => {
+  assert.equal(
+    sanitizeSequence(">seq1\n1 atg gcc 2\nGAATTC"),
+    "ATGGCCGAATTC",
+  );
+});
+
+test("findRestrictionSites detects NotI, SalI and EcoRI in a test sequence", () => {
+  const results = findRestrictionSites("GCGGCCGCGTCGACGAATTC");
+  const notI = results.find((r) => r.name === "NotI");
+  const salI = results.find((r) => r.name === "SalI");
+  const ecoRI = results.find((r) => r.name === "EcoRI");
+  assert.ok(notI.sites.includes(1));
+  assert.ok(salI.sites.includes(9));
+  assert.ok(ecoRI.sites.includes(15));
+});
+
+test("calculateProteinStats computes length, molecular weight, hydrophobicity and invalid count", () => {
+  const stats = calculateProteinStats("MKWVTFISLLFLFSSAYSRGVFRRDTHKSEIAHRFKDLGE");
+  assert.equal(stats.length, 40);
+  assert.ok(stats.molecularWeight > 4000);
+  assert.ok(stats.hydrophobicPercent > 0);
+  assert.equal(stats.invalidCount, 0);
+});
+
+test("detectPlasmidInputKind classifies genbank, fasta and raw-sequence", () => {
+  assert.equal(
+    detectPlasmidInputKind("LOCUS   pBR322\nFEATURES"),
+    "genbank",
+  );
+  assert.equal(
+    detectPlasmidInputKind(">seq\nATGC"),
+    "fasta",
+  );
+  assert.equal(
+    detectPlasmidInputKind("ATGCATGC"),
+    "raw-sequence",
+  );
+});
+
+test("matchLocalPathway maps query strings to local pathway keys", () => {
+  assert.equal(matchLocalPathway("MAPK"), "mapk");
+  assert.equal(matchLocalPathway("glycolysis"), "glycolysis");
+  assert.equal(matchLocalPathway("EGFR"), "mapk");
 });

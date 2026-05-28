@@ -419,7 +419,9 @@ export function sanitizeSequence(input) {
     .filter((line) => !line.trim().startsWith(">"))
     .join("")
     .toUpperCase()
-    .replace(/\s+/g, "");
+    .replace(/\s+/g, "")
+    .replace(/\d+/g, "")
+    .replace(/[^A-Z*]/g, "");
 }
 
 export function detectSequenceType(input) {
@@ -587,6 +589,8 @@ export function findRestrictionSites(input) {
     { name: "HindIII", motif: "AAGCTT" },
     { name: "XhoI", motif: "CTCGAG" },
     { name: "NdeI", motif: "CATATG" },
+    { name: "NotI", motif: "GCGGCCGC" },
+    { name: "SalI", motif: "GTCGAC" },
   ];
 
   return enzymes.map((enzyme) => {
@@ -787,4 +791,67 @@ export function explainPathwayNode(node, pathway) {
     return `${label} 是通路输出结果，适合用来连接表型、疾病和实验观察。`;
   }
   return `${label} 是 ${pathway?.name || "该通路"} 中的关键节点，建议结合上下游边理解激活、抑制或磷酸化关系。`;
+}
+
+export function calculateProteinStats(input) {
+  const seq = sanitizeSequence(input);
+  const standard = "ACDEFGHIKLMNPQRSTVWY";
+  const hydrophobic = new Set(["A", "V", "I", "L", "M", "F", "W", "Y", "P"]);
+  const weights = {
+    A: 89.09, C: 121.15, D: 133.10, E: 147.13, F: 165.19,
+    G: 75.07, H: 155.16, I: 131.17, K: 146.19, L: 131.17,
+    M: 149.21, N: 132.12, P: 115.13, Q: 146.15, R: 174.20,
+    S: 105.09, T: 119.12, V: 117.15, W: 204.23, Y: 181.19,
+  };
+  const composition = {};
+  let length = 0;
+  let invalidCount = 0;
+  let hydrophobicCount = 0;
+  let totalWeight = 0;
+
+  for (const ch of seq) {
+    if (standard.includes(ch)) {
+      length += 1;
+      composition[ch] = (composition[ch] || 0) + 1;
+      totalWeight += weights[ch] || 0;
+      if (hydrophobic.has(ch)) hydrophobicCount += 1;
+    } else if (/[A-Z]/.test(ch)) {
+      invalidCount += 1;
+    }
+  }
+
+  return {
+    sequence: seq,
+    length,
+    invalidCount,
+    composition,
+    molecularWeight: Math.round(totalWeight),
+    hydrophobicPercent: length > 0 ? Math.round((hydrophobicCount / length) * 100 * 10) / 10 : 0,
+  };
+}
+
+export function detectPlasmidInputKind(text) {
+  const input = String(text || "").trim();
+  if (!input) return "empty";
+  if (/LOCUS\s+/i.test(input) && /FEATURES/i.test(input)) return "genbank";
+  if (/^\s*>\s*\S/.test(input)) return "fasta";
+  if (/^[ATGCNatgcn\s]+$/.test(input)) return "raw-sequence";
+  return "unknown";
+}
+
+export function matchLocalPathway(query) {
+  const q = String(query || "").trim().toLowerCase();
+  const aliases = {
+    "cell-cycle": ["cell cycle", "细胞周期", "p53", "p21", "cdk", "cyclin"],
+    apoptosis: ["apoptosis", "凋亡", "bax", "bcl2", "caspase"],
+    mapk: ["mapk", "egfr", "erk", "mek", "ras", "raf", "rtk"],
+    glycolysis: ["glycolysis", "糖酵解", "glucose", "pyruvate", "atp"],
+    "dna-repair": ["dna repair", "dna修复", "dna 修复", "brca", "atm", "atr", "chk"],
+  };
+  for (const [key, keywords] of Object.entries(aliases)) {
+    if (keywords.some((kw) => q.includes(kw) || kw.includes(q))) {
+      return key;
+    }
+  }
+  return null;
 }

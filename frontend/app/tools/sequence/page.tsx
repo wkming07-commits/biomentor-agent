@@ -1,23 +1,28 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
-import { ArrowRightLeft, BarChart3, ChevronDown, ChevronUp, Dna, Flame, Scissors, Send, Sparkles } from "lucide-react";
+import { useMemo, useState, useRef } from "react";
+import { ArrowRightLeft, BarChart3, Dna, Flame, Scissors, Upload } from "lucide-react";
 
 import {
   calculateNucleotideStats,
+  calculateProteinStats,
   designPrimerPair,
   detectSequenceType,
   findOpenReadingFrames,
   findRestrictionSites,
   reverseComplement,
   sampleDnaSequence,
+  sanitizeSequence,
   transcribeDnaToRna,
   translateDna,
 } from "@/lib/biotools.mjs";
 
+import BioMentorToolChat from "@/components/BioMentorToolChat";
+import type { ToolContextSummary } from "@/lib/tool-ai-types";
+
 type ToolMode = "overview" | "rna" | "reverse" | "translate" | "orf" | "sites" | "primer";
 
-const tools: { key: ToolMode; label: string; icon: typeof Dna }[] = [
+const dnaTools: { key: ToolMode; label: string; icon: typeof Dna }[] = [
   { key: "overview", label: "概览", icon: BarChart3 },
   { key: "rna", label: "转录", icon: ArrowRightLeft },
   { key: "reverse", label: "反向互补", icon: Dna },
@@ -30,23 +35,118 @@ const tools: { key: ToolMode; label: string; icon: typeof Dna }[] = [
 export default function SequencePage() {
   const [sequence, setSequence] = useState(sampleDnaSequence);
   const [activeTool, setActiveTool] = useState<ToolMode>("overview");
-  const [chatInput, setChatInput] = useState("");
-  const [quizOpen, setQuizOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sequenceType = useMemo(() => detectSequenceType(sequence), [sequence]);
-  const stats = useMemo(() => calculateNucleotideStats(sequence), [sequence]);
-  const rna = useMemo(() => transcribeDnaToRna(sequence), [sequence]);
-  const reverse = useMemo(() => reverseComplement(stats.sequence), [stats.sequence]);
-  const protein = useMemo(() => translateDna(sequence), [sequence]);
-  const orfs = useMemo(() => findOpenReadingFrames(sequence), [sequence]);
-  const sites = useMemo(() => findRestrictionSites(sequence), [sequence]);
+  const isNucleic = sequenceType === "DNA" || sequenceType === "RNA";
+  const isProtein = sequenceType === "Protein";
+
+  const dnaStats = useMemo(() => {
+    if (isNucleic) return calculateNucleotideStats(sequence);
+    return null;
+  }, [sequence, isNucleic]);
+
+  const proteinStats = useMemo(() => {
+    if (isProtein) return calculateProteinStats(sequence);
+    return null;
+  }, [sequence, isProtein]);
+
+  const safeActiveTool: ToolMode = isProtein ? "overview" : activeTool;
+
+  const rna = useMemo(() => (isNucleic ? transcribeDnaToRna(sequence) : ""), [sequence, isNucleic]);
+  const reverse = useMemo(() => (isNucleic && dnaStats ? reverseComplement(dnaStats.sequence) : ""), [isNucleic, dnaStats]);
+  const protein = useMemo(() => (isNucleic ? translateDna(sequence) : ""), [sequence, isNucleic]);
+  const orfs = useMemo(() => (isNucleic ? findOpenReadingFrames(sequence) : []), [sequence, isNucleic]);
+  const sites = useMemo(() => (isNucleic ? findRestrictionSites(sequence) : []), [sequence, isNucleic]);
   const primers = useMemo(() => {
+    if (!isNucleic) return null;
     try {
       return designPrimerPair(sequence);
     } catch {
       return null;
     }
-  }, [sequence]);
+  }, [sequence, isNucleic]);
+
+  const invalidCount = isProtein ? proteinStats?.invalidCount ?? 0 : dnaStats?.invalidCount ?? 0;
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event_) => {
+      const text = event_?.target?.result;
+      if (typeof text === "string") setSequence(text);
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
+  const aiContext = useMemo<ToolContextSummary>(() => {
+    if (isProtein && proteinStats) {
+      return {
+        title: "序列分析",
+        subtitle: `蛋白序列 · ${proteinStats.length} aa`,
+        facts: [
+          { label: "序列类型", value: "蛋白质" },
+          { label: "氨基酸数", value: `${proteinStats.length} aa` },
+          { label: "分子量", value: `${proteinStats.molecularWeight} Da` },
+          { label: "疏水性比例", value: `${proteinStats.hydrophobicPercent}%` },
+        ],
+        highlights: [
+          `该蛋白序列包含 ${proteinStats.length} 个氨基酸残基`,
+          `粗略分子量约 ${proteinStats.molecularWeight} Da`,
+          `疏水性残基占比 ${proteinStats.hydrophobicPercent}%，可用于初步判断蛋白的溶解性和折叠倾向`,
+          "建议使用蛋白质结构查看器（Protein Explorer）进行三维结构分析",
+        ],
+        warnings: proteinStats.invalidCount > 0
+          ? [`检测到 ${proteinStats.invalidCount} 个非标准氨基酸字符，建议检查序列完整性`]
+          : undefined,
+      };
+    }
+    if (isNucleic && dnaStats) {
+      const enzymeNames = sites.filter((s) => s.count > 0).map((s) => s.name);
+      return {
+        title: "序列分析",
+        subtitle: `核酸序列 · ${dnaStats.length} bp`,
+        facts: [
+          { label: "序列类型", value: sequenceType },
+          { label: "序列长度", value: `${dnaStats.length} bp` },
+          { label: "GC 含量", value: `${dnaStats.gcPercent}%` },
+          { label: "ORF 数量", value: `${orfs.length}` },
+          { label: "酶切位点", value: enzymeNames.length > 0 ? enzymeNames.join("、") : "未检出" },
+        ],
+        highlights: [
+          `${sequenceType} 序列，长度 ${dnaStats.length} bp，GC 含量 ${dnaStats.gcPercent}%`,
+          `共检出 ${orfs.length} 个开放阅读框`,
+          enzymeNames.length > 0
+            ? `检测到 ${enzymeNames.join("、")} 酶切位点，可用于克隆策略设计`
+            : "未检测到常见限制性内切酶位点",
+        ],
+        warnings: dnaStats.invalidCount > 0
+          ? [`已忽略 ${dnaStats.invalidCount} 个非标准字符，建议检查序列完整性`]
+          : undefined,
+      };
+    }
+    return {
+      title: "序列分析",
+      subtitle: "无效或混合序列",
+      facts: [
+        { label: "序列类型", value: sequenceType },
+        { label: "有效长度", value: `${dnaStats?.length ?? proteinStats?.length ?? 0}` },
+      ],
+      highlights: ["请输入有效的 DNA / RNA / 蛋白质序列以开始分析"],
+      warnings: ["当前输入无法被识别为标准的核酸或蛋白质序列"],
+    };
+  }, [isProtein, isNucleic, proteinStats, dnaStats, sequenceType, sites, orfs]);
+
+  const contextKey = useMemo(() => {
+    const seq = sanitizeSequence(sequence).slice(0, 50);
+    return `${sequenceType}:${seq}`;
+  }, [sequence, sequenceType]);
+
+  const quickQuestions = isProtein
+    ? ["如何判断蛋白质是膜蛋白还是可溶蛋白？", "疏水区有什么功能意义？", "如何从一级序列推演结构域？"]
+    : ["这段序列的 GC 含量算高还是低？", "如何选择最合适的限制酶？", "ORF 不完整说明什么问题？"];
 
   return (
     <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-12 font-body">
@@ -55,7 +155,7 @@ export default function SequencePage() {
           <p className="section-title">Sequence Lab</p>
           <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">序列分析工具</h1>
           <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
-            粘贴 DNA / RNA / 蛋白序列，完成类型识别、GC 分析、转录、翻译、ORF、酶切位点和引物检查。
+            粘贴 DNA / RNA / 蛋白序列，或上传 .fa / .fasta / .txt 文件，完成类型识别和序列分析。
           </p>
         </header>
 
@@ -65,15 +165,36 @@ export default function SequencePage() {
               <textarea
                 value={sequence}
                 onChange={(event) => setSequence(event.target.value)}
-                placeholder="粘贴序列，支持 FASTA header"
+                placeholder="粘贴序列，支持 FASTA header；DNA / RNA / 蛋白质序列均可"
                 className="w-full px-4 py-3 rounded-2xl text-sm bg-white/65 backdrop-blur border border-white/90 text-brand-ink placeholder:text-brand-faint outline-none focus:border-accent-electric/30 focus:ring-2 focus:ring-accent-electric/10 transition-all h-32 resize-none font-mono"
               />
-              <div className="flex flex-wrap gap-2">
-                {tools.map((tool) => {
+              <div className="flex flex-wrap gap-2 items-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".fa,.fasta,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold text-brand-muted bg-white/45 border border-white/70 hover:bg-white/80 hover:text-[#111827] transition-all"
+                >
+                  <Upload className="w-3.5 h-3.5" /> 上传文件
+                </button>
+                {(isProtein ? [{ key: "overview" as ToolMode, label: "概览", icon: BarChart3 }] : dnaTools).map((tool) => {
                   const Icon = tool.icon;
-                  const isActive = activeTool === tool.key;
+                  const isActive = safeActiveTool === tool.key;
                   return (
-                    <button key={tool.key} onClick={() => setActiveTool(tool.key)} className={isActive ? "inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold bg-[#111827] text-white" : "inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold text-brand-muted bg-white/45 border border-white/70 hover:bg-white/80 hover:text-[#111827] transition-all"}>
+                    <button
+                      key={tool.key}
+                      onClick={() => setActiveTool(tool.key)}
+                      className={
+                        isActive
+                          ? "inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold bg-[#111827] text-white"
+                          : "inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold text-brand-muted bg-white/45 border border-white/70 hover:bg-white/80 hover:text-[#111827] transition-all"
+                      }
+                    >
                       <Icon className="w-3.5 h-3.5" /> {tool.label}
                     </button>
                   );
@@ -82,40 +203,104 @@ export default function SequencePage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Metric label="序列类型" value={sequenceType} accent="#2563eb" />
-              <Metric label="有效长度" value={`${stats.length} bp`} accent="#059669" />
-              <Metric label="GC 含量" value={`${stats.gcPercent}%`} accent="#7c3aed" />
-              <Metric label="ORF 数量" value={String(orfs.length)} accent="#d97706" />
+              {isProtein && proteinStats ? (
+                <>
+                  <Metric label="序列类型" value="蛋白质" accent="#2563eb" />
+                  <Metric label="氨基酸数" value={`${proteinStats.length} aa`} accent="#059669" />
+                  <Metric label="分子量" value={`${proteinStats.molecularWeight} Da`} accent="#7c3aed" />
+                  <Metric label="疏水性" value={`${proteinStats.hydrophobicPercent}%`} accent="#d97706" />
+                </>
+              ) : (
+                <>
+                  <Metric label="序列类型" value={sequenceType} accent="#2563eb" />
+                  <Metric label="有效长度" value={`${dnaStats?.length ?? 0} bp`} accent="#059669" />
+                  <Metric label="GC 含量" value={`${dnaStats?.gcPercent ?? 0}%`} accent="#7c3aed" />
+                  <Metric label="ORF 数量" value={String(orfs.length)} accent="#d97706" />
+                </>
+              )}
             </div>
 
-            {stats.invalidCount > 0 && (
+            {invalidCount > 0 && (
               <div className="rounded-3xl bg-amber-50/80 border border-amber-200 px-4 py-3 text-sm text-amber-900">
-                已忽略 {stats.invalidCount} 个非标准字符；建议检查是否混入注释、空格或非核酸字符。
+                已忽略 {invalidCount} 个非标准字符；建议检查是否混入注释、空格或非{isProtein ? "氨基酸" : "核酸"}字符。
               </div>
             )}
 
             <div className="liquid-card p-5 min-h-[420px]">
-              {activeTool === "overview" && (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-                  <div className="stat-number text-5xl text-accent-electric mb-3">{stats.gcPercent}%</div>
-                  <div className="font-display text-xl font-bold text-[#111827] mb-4">GC 含量</div>
-                  <div className="flex flex-wrap justify-center gap-5 text-sm text-brand-muted">
-                    {Object.entries(stats.bases).map(([base, count]) => <span key={base}><span className="font-mono font-bold text-[#111827]">{count}</span> {base}</span>)}
+              {isProtein && (
+                <div className="space-y-4">
+                  <h3 className="font-display text-lg font-bold text-[#111827]">蛋白质序列概览</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-3xl bg-white/50 border border-white/80 p-4 text-center">
+                      <div className="stat-number text-2xl text-[#2563eb]">{proteinStats?.length ?? 0}</div>
+                      <div className="text-xs text-brand-muted mt-1">氨基酸残基</div>
+                    </div>
+                    <div className="rounded-3xl bg-white/50 border border-white/80 p-4 text-center">
+                      <div className="stat-number text-2xl text-[#059669]">{proteinStats?.molecularWeight ?? 0} Da</div>
+                      <div className="text-xs text-brand-muted mt-1">分子量</div>
+                    </div>
+                    <div className="rounded-3xl bg-white/50 border border-white/80 p-4 text-center">
+                      <div className="stat-number text-2xl text-[#7c3aed]">{proteinStats?.hydrophobicPercent ?? 0}%</div>
+                      <div className="text-xs text-brand-muted mt-1">疏水性比例</div>
+                    </div>
                   </div>
-                  <div className="mt-7 h-3 rounded-full overflow-hidden flex w-full max-w-md bg-white/50">
-                    <div style={{ width: `${stats.length ? (stats.bases.G / stats.length) * 100 : 0}%`, background: "#2563eb" }} />
-                    <div style={{ width: `${stats.length ? (stats.bases.C / stats.length) * 100 : 0}%`, background: "#60a5fa" }} />
-                    <div style={{ width: `${stats.length ? (stats.bases.A / stats.length) * 100 : 0}%`, background: "#a7f3d0" }} />
-                    <div style={{ width: `${stats.length ? (stats.bases.T / stats.length) * 100 : 0}%`, background: "#fde68a" }} />
+                  {proteinStats?.composition && (
+                    <div className="rounded-3xl bg-white/50 border border-white/80 p-4">
+                      <div className="font-semibold text-[#111827] text-sm mb-3">氨基酸组成</div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(proteinStats.composition)
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([aa, count]) => (
+                            <span key={aa} className="text-xs font-mono bg-white/60 border border-white/80 rounded-full px-2.5 py-1">
+                              {aa}: {count}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="rounded-3xl bg-white/45 border border-white/70 p-4 text-sm text-brand-muted leading-relaxed">
+                    <div className="font-semibold text-[#111827] mb-2">蛋白质序列说明</div>
+                    <p>
+                      以上为蛋白质一级序列。如需了解三维结构、结构域和功能注释，请使用
+                      <a href="/tools/protein" className="text-accent-electric font-semibold hover:underline ml-1">
+                        蛋白结构查看器
+                      </a>。
+                    </p>
                   </div>
                 </div>
               )}
 
-              {activeTool === "rna" && <SequenceBlock title="DNA → RNA 转录" sequence={rna || "请输入 DNA 序列"} note="转录会把 DNA 中的 T 替换为 RNA 中的 U，可用于理解中心法则。" />}
-              {activeTool === "reverse" && <SequenceBlock title="反向互补链" sequence={reverse || "请输入 DNA 序列"} note="反向互补链常用于引物设计、克隆方向检查和双链 DNA 理解。" />}
-              {activeTool === "translate" && <SequenceBlock title="翻译得到的氨基酸序列" sequence={protein || "请输入有效 DNA 序列"} note="星号 * 表示终止密码子；若过早出现终止，需检查读框或序列完整性。" />}
+              {!isProtein && safeActiveTool === "overview" && dnaStats && (
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="stat-number text-5xl text-accent-electric mb-3">{dnaStats.gcPercent}%</div>
+                  <div className="font-display text-xl font-bold text-[#111827] mb-4">GC 含量</div>
+                  <div className="flex flex-wrap justify-center gap-5 text-sm text-brand-muted">
+                    {Object.entries(dnaStats.bases).map(([base, count]) => (
+                      <span key={`base-${base}`}>
+                        <span className="font-mono font-bold text-[#111827]">{count}</span> {base}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-7 h-3 rounded-full overflow-hidden flex w-full max-w-md bg-white/50">
+                    <div style={{ width: `${dnaStats.length ? (dnaStats.bases.G / dnaStats.length) * 100 : 0}%`, background: "#2563eb" }} />
+                    <div style={{ width: `${dnaStats.length ? (dnaStats.bases.C / dnaStats.length) * 100 : 0}%`, background: "#60a5fa" }} />
+                    <div style={{ width: `${dnaStats.length ? (dnaStats.bases.A / dnaStats.length) * 100 : 0}%`, background: "#a7f3d0" }} />
+                    <div style={{ width: `${dnaStats.length ? (dnaStats.bases.T / dnaStats.length) * 100 : 0}%`, background: "#fde68a" }} />
+                  </div>
+                </div>
+              )}
 
-              {activeTool === "orf" && (
+              {!isProtein && safeActiveTool === "rna" && (
+                <SequenceBlock title="DNA → RNA 转录" sequence={rna || "请输入 DNA 序列"} note="转录会把 DNA 中的 T 替换为 RNA 中的 U，可用于理解中心法则。" />
+              )}
+              {!isProtein && safeActiveTool === "reverse" && (
+                <SequenceBlock title="反向互补链" sequence={reverse || "请输入 DNA 序列"} note="反向互补链常用于引物设计、克隆方向检查和双链 DNA 理解。" />
+              )}
+              {!isProtein && safeActiveTool === "translate" && (
+                <SequenceBlock title="翻译得到的氨基酸序列" sequence={protein || "请输入有效 DNA 序列"} note="星号 * 表示终止密码子；若过早出现终止，需检查读框或序列完整性。" />
+              )}
+
+              {!isProtein && safeActiveTool === "orf" && (
                 <div className="space-y-3">
                   <h3 className="font-display text-lg font-bold text-[#111827]">开放阅读框 ORF</h3>
                   {orfs.length ? orfs.map((orf) => (
@@ -130,7 +315,7 @@ export default function SequencePage() {
                 </div>
               )}
 
-              {activeTool === "sites" && (
+              {!isProtein && safeActiveTool === "sites" && (
                 <div className="space-y-4">
                   <h3 className="font-display text-lg font-bold text-[#111827]">限制性内切酶位点</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -141,11 +326,11 @@ export default function SequencePage() {
                       </div>
                     ))}
                   </div>
-                  <HighlightedSequence sequence={stats.sequence} sites={sites} />
+                  {dnaStats && <HighlightedSequence sequence={dnaStats.sequence} sites={sites} />}
                 </div>
               )}
 
-              {activeTool === "primer" && (
+              {!isProtein && safeActiveTool === "primer" && (
                 <div className="space-y-3">
                   <h3 className="font-display text-lg font-bold text-[#111827]">引物设计检查</h3>
                   {primers ? (["forward", "reverse"] as const).map((side) => (
@@ -163,32 +348,14 @@ export default function SequencePage() {
             </div>
           </main>
 
-          <aside className="liquid-card p-5 xl:sticky xl:top-24 h-fit">
-            <h2 className="font-display text-xl font-black text-[#111827] mb-4">序列学习解释</h2>
-            <div className="space-y-4 text-sm text-brand-muted leading-relaxed">
-              <p>当前输入被识别为 <span className="font-semibold text-[#111827]">{sequenceType}</span>，有效核酸长度 {stats.length} bp，GC 含量 {stats.gcPercent}%。</p>
-              <div className="rounded-3xl bg-white/45 border border-white/70 p-4">
-                <div className="font-semibold text-[#111827] mb-2">如何判断实验风险</div>
-                <p>GC 过低可能降低退火稳定性，GC 过高可能产生二级结构；酶切位点应避开目标片段内部；ORF 需要读框完整。</p>
-              </div>
-              <div className="rounded-3xl bg-white/45 border border-white/70 p-4">
-                <div className="font-semibold text-[#111827] mb-2">引导问题</div>
-                <p>如果要把这段序列克隆进表达载体，你会优先检查哪些酶切位点、读框和引物参数？</p>
-              </div>
-            </div>
-            <div className="mt-5 flex items-center gap-2">
-              <input type="text" value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="输入你的问题…" className="flex-1 px-4 py-2.5 rounded-2xl text-sm bg-white/60 border border-white/80 outline-none" />
-              <button className="p-2.5 rounded-2xl bg-[#111827] text-white"><Send className="w-4 h-4" /></button>
-            </div>
-          </aside>
-        </div>
-
-        <div className="liquid-card overflow-hidden">
-          <button onClick={() => setQuizOpen(!quizOpen)} className="w-full p-4 flex items-center justify-between text-left text-sm font-bold text-[#111827]">
-            <span>验证理解：这段序列最适合用哪种限制酶进行克隆？为什么？</span>
-            {quizOpen ? <ChevronUp className="w-4 h-4 text-brand-faint" /> : <ChevronDown className="w-4 h-4 text-brand-faint" />}
-          </button>
-          {quizOpen && <div className="px-4 pb-4"><div className="p-4 rounded-3xl text-sm text-brand-muted leading-relaxed bg-white/45 border border-white/70">优先选择目标序列内部未出现、且载体 MCS 中存在的酶切位点；还要检查读框、保护碱基和上下游引物 Tm 是否匹配。</div></div>}
+          <BioMentorToolChat
+            tool="sequence"
+            title="序列分析"
+            context={aiContext}
+            contextKey={contextKey}
+            emptyState="粘贴序列或上传文件后，BioMentor AI 将为您生成智能讲解。"
+            quickQuestions={quickQuestions}
+          />
         </div>
       </div>
     </div>
@@ -196,11 +363,22 @@ export default function SequencePage() {
 }
 
 function Metric({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return <div className="liquid-card p-4 text-center"><div className="stat-number text-lg" style={{ color: accent }}>{value}</div><div className="text-[11px] text-brand-muted mt-1">{label}</div></div>;
+  return (
+    <div className="liquid-card p-4 text-center">
+      <div className="stat-number text-lg" style={{ color: accent }}>{value}</div>
+      <div className="text-[11px] text-brand-muted mt-1">{label}</div>
+    </div>
+  );
 }
 
 function SequenceBlock({ title, sequence, note }: { title: string; sequence: string; note: string }) {
-  return <div className="space-y-4"><h3 className="font-display text-lg font-bold text-[#111827]">{title}</h3><div className="min-h-[220px] rounded-3xl bg-white/50 border border-white/80 p-4 text-xs font-mono break-all leading-relaxed text-[#111827]">{sequence}</div><p className="text-sm text-brand-muted leading-relaxed">{note}</p></div>;
+  return (
+    <div className="space-y-4">
+      <h3 className="font-display text-lg font-bold text-[#111827]">{title}</h3>
+      <div className="min-h-[220px] rounded-3xl bg-white/50 border border-white/80 p-4 text-xs font-mono break-all leading-relaxed text-[#111827]">{sequence}</div>
+      <p className="text-sm text-brand-muted leading-relaxed">{note}</p>
+    </div>
+  );
 }
 
 function HighlightedSequence({ sequence, sites }: { sequence: string; sites: Array<{ name: string; motif: string; sites: number[] }> }) {
@@ -210,5 +388,13 @@ function HighlightedSequence({ sequence, sites }: { sequence: string; sites: Arr
       for (let i = 0; i < enzyme.motif.length; i += 1) marks.set(site - 1 + i, enzyme.name);
     }
   }
-  return <div className="rounded-3xl bg-white/50 border border-white/80 p-4 text-xs font-mono break-all leading-7 max-h-56 overflow-auto">{sequence.split("").map((char, index) => <span key={`${index}-${char}`} className={marks.has(index) ? "rounded bg-amber-200 px-0.5 text-amber-950" : "text-[#111827]"} title={marks.get(index)}>{char}</span>)}</div>;
+  return (
+    <div className="rounded-3xl bg-white/50 border border-white/80 p-4 text-xs font-mono break-all leading-7 max-h-56 overflow-auto">
+      {sequence.split("").map((char, index) => (
+        <span key={`${index}-${char}`} className={marks.has(index) ? "rounded bg-amber-200 px-0.5 text-amber-950" : "text-[#111827]"} title={marks.get(index)}>
+          {char}
+        </span>
+      ))}
+    </div>
+  );
 }

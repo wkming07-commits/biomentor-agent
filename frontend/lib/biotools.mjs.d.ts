@@ -143,3 +143,16 @@ export function toCytoscapeElements(pathway: {
 }): Array<{ data: Record<string, string> }>;
 export function getPathwayLearningPath(pathwayKeyOrRecord: string | PathwayRecord): PathwayLearningStep[];
 export function explainPathwayNode(node: PathwayNode, pathway?: PathwayRecord): string;
+
+export interface ProteinStats {
+  sequence: string;
+  length: number;
+  invalidCount: number;
+  composition: Record<string, number>;
+  molecularWeight: number;
+  hydrophobicPercent: number;
+}
+
+export function calculateProteinStats(input: string): ProteinStats;
+export function detectPlasmidInputKind(text: string): "empty" | "genbank" | "fasta" | "raw-sequence" | "unknown";
+export function matchLocalPathway(query: string): string | null;
