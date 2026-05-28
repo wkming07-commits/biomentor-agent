@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Sparkles, RefreshCw, BookOpen, Lightbulb, Target, Compass, Search, Dna, Info, FileText, Building2, ChevronDown, ChevronUp } from "lucide-react";
+import Link from "next/link";
+import { Send, Sparkles, RefreshCw, BookOpen, Lightbulb, Target, Search, Dna, Info, Building2, ChevronDown, ChevronUp, ArrowRight, FlaskConical, ExternalLink } from "lucide-react";
 import type { IndustryAnswer } from "@/data/industryCases";
 
 const QUICK_TAGS = [
@@ -64,8 +65,6 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
   };
 
   const matchedCases = answer?.matchedCases || [];
-  const directMatched = matchedCases.slice(0, 1);
-  const relatedMatched = matchedCases.slice(1);
 
   return (
     <div className="w-full">
@@ -128,9 +127,7 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
       {loading && (
         <div className="glass-card rounded-2xl p-10 text-center">
           <Sparkles className="w-8 h-8 text-blue-500 mx-auto mb-3 animate-shimmer" />
-          <p className="text-sm text-brand-muted font-body">
-            正在综合分析产业案例与科研前沿...
-          </p>
+          <p className="text-sm text-brand-muted font-body">正在综合分析产业案例与科研前沿...</p>
         </div>
       )}
 
@@ -170,41 +167,42 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             </div>
           )}
 
-          {/* 2. 直接匹配案例 */}
-          {directMatched.length > 0 && (
+          {/* 2. 相关产业案例 */}
+          {matchedCases.length > 0 && (
             <section className="space-y-2">
               <div className="flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">直接匹配案例</h4>
+                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">相关产业案例</h4>
               </div>
-              {directMatched.map((mc, i) => (
-                <div key={i} className="rounded-xl bg-blue-50/40 p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-blue-500 font-semibold">{mc.id}</span>
-                    <span className="text-sm font-semibold text-brand-ink">{mc.title}</span>
+              <div className="space-y-2">
+                {matchedCases.map((mc, i) => (
+                  <div key={i} className="rounded-xl bg-blue-50/40 p-4">
+                    <h5 className="text-sm font-semibold text-brand-ink mb-1">{mc.title}</h5>
+                    <p className="text-[11px] text-brand-muted font-body mb-3">{mc.reason}</p>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/cases#cases-section`}
+                        className="flex items-center gap-1 text-[11px] font-medium text-brand-muted hover:text-blue-600 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        查看详情
+                      </Link>
+                      <Link
+                        href={`/research?caseId=${mc.id}`}
+                        className="flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                      >
+                        <FlaskConical className="w-3 h-3" />
+                        进入科研实战
+                        <ArrowRight className="w-2.5 h-2.5" />
+                      </Link>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-brand-muted font-body">{mc.reason}</p>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {/* 3. 相关知识与技术点 */}
-          {answer.relatedKnowledgePoints.length > 0 && (
-            <section className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">相关知识与技术点</h4>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {answer.relatedKnowledgePoints.map((kp, i) => (
-                  <span key={i} className="badge badge-cyan text-[10px]">{kp}</span>
                 ))}
               </div>
             </section>
           )}
 
-          {/* 4. 产业应用场景 */}
+          {/* 3. 产业应用场景 */}
           {answer.industryApplications.length > 0 && (
             <section className="space-y-2">
               <div className="flex items-center gap-1.5">
@@ -221,25 +219,23 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
             </section>
           )}
 
-          {/* 5. 科研实战任务 */}
-          {(answer.nextTasks || answer.researchTasks).length > 0 && (
-            <section className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5 text-blue-500" />
-                <h4 className="text-xs font-bold text-brand-ink uppercase tracking-wider">可进入的科研实战任务</h4>
-              </div>
-              <ul className="space-y-1">
-                {(answer.nextTasks || answer.researchTasks).slice(0, 3).map((rt, i) => (
-                  <li key={i} className="text-xs text-brand-muted font-body flex items-center gap-1.5">
-                    <span className="w-4 h-4 rounded bg-blue-500/10 text-blue-600 text-[9px] font-bold flex items-center justify-center shrink-0">
-                      {i + 1}
-                    </span>
-                    {rt}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {/* 4. 下一步操作 */}
+          <div className="rounded-xl bg-gradient-to-r from-blue-50/60 to-cyan-50/40 p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-brand-ink">下一步操作</p>
+              <p className="text-[11px] text-brand-muted font-body mt-0.5">
+                查看匹配案例的详细信息，或进入科研实战模块进行深入探索
+              </p>
+            </div>
+            <Link
+              href="/research"
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              进入科研实战
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
 
           {/* 展开更多 */}
           <div className="pt-1">
@@ -247,27 +243,23 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
               onClick={() => setShowMore(!showMore)}
               className="flex items-center gap-1.5 text-[11px] font-medium text-brand-faint hover:text-blue-600 transition-colors cursor-pointer py-1"
             >
-              {showMore ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
+              {showMore ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               {showMore ? "收起更多" : "展开更多"}
             </button>
           </div>
 
           {showMore && (
             <div className="space-y-4 animate-reveal-up">
-              {/* 相关拓展案例 */}
-              {relatedMatched.length > 0 && (
+              {/* 相关知识与技术点 */}
+              {answer.relatedKnowledgePoints.length > 0 && (
                 <section className="space-y-2">
-                  <h4 className="text-[10px] font-bold text-brand-faint uppercase tracking-wider">相关拓展案例</h4>
-                  <div className="space-y-1.5">
-                    {relatedMatched.map((mc, i) => (
-                      <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-black/[0.02]">
-                        <span className="text-[9px] font-mono text-brand-faint shrink-0 mt-0.5">{mc.id}</span>
-                        <span className="text-[11px] font-medium text-brand-muted">{mc.title}</span>
-                      </div>
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen className="w-3 h-3 text-blue-400" />
+                    <h4 className="text-[10px] font-bold text-brand-faint uppercase tracking-wider">相关知识与技术点</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {answer.relatedKnowledgePoints.map((kp, i) => (
+                      <span key={i} className="badge badge-cyan text-[10px]">{kp}</span>
                     ))}
                   </div>
                 </section>
@@ -313,6 +305,23 @@ export function IndustryAskPanel({ onQuery }: IndustryAskPanelProps) {
                       </code>
                     ))}
                   </div>
+                </section>
+              )}
+
+              {/* 科研实战任务 */}
+              {(answer.nextTasks || answer.researchTasks).length > 0 && (
+                <section className="space-y-2">
+                  <h4 className="text-[10px] font-bold text-brand-faint uppercase tracking-wider">科研实战任务</h4>
+                  <ul className="space-y-1">
+                    {(answer.nextTasks || answer.researchTasks).map((rt, i) => (
+                      <li key={i} className="text-[11px] text-brand-muted font-body flex items-center gap-1.5">
+                        <span className="w-4 h-4 rounded bg-blue-500/10 text-blue-600 text-[9px] font-bold flex items-center justify-center shrink-0">
+                          {i + 1}
+                        </span>
+                        {rt}
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
             </div>
