@@ -17,7 +17,17 @@ import {
   Clock,
   Lightbulb,
   ChevronRight,
+  Building2,
+  Microscope,
+  TrendingUp,
+  AlertTriangle,
+  ArrowLeft,
+  Brain,
+  Hash,
+  Presentation,
 } from "lucide-react";
+import Link from "next/link";
+import { industryCases, type IndustryCase } from "@/data/industryCases";
 
 interface Message {
   role: "user" | "ai";
@@ -76,7 +86,69 @@ const demoMessages: Message[] = [
   },
 ];
 
-export default function ResearchPage() {
+interface ResearchTask {
+  type: "literature" | "experiment" | "mechanism";
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+function generateStaticTasks(caseData: IndustryCase): ResearchTask[] {
+  const kp = caseData.relatedKnowledgePoints.slice(0, 3).join("、");
+  const kw = caseData.recommendedKeywords.slice(0, 4).join(", ");
+
+  return [
+    {
+      type: "literature",
+      title: "文献调研任务",
+      description: `围绕"${caseData.coreProblem}"，检索近5年关键文献，梳理研究现状与技术进展。推荐检索关键词：${kw}。`,
+      icon: <BookOpen className="w-4 h-4" />,
+    },
+    {
+      type: "experiment",
+      title: "实验设计任务",
+      description: `基于${kp}等核心知识点，设计验证"${caseData.coreProblem}"的实验方案，包括对照组设置、检测方法选择和技术路线规划。`,
+      icon: <FlaskConical className="w-4 h-4" />,
+    },
+    {
+      type: "mechanism",
+      title: "机制解释与证据判断",
+      description: `结合${caseData.evidenceLevel}等级证据和${caseData.sourceType}来源，系统分析相关研究证据链，评估研究结论的可靠性与局限性。`,
+      icon: <Brain className="w-4 h-4" />,
+    },
+  ];
+}
+
+function generateResearchGuidance(caseData: IndustryCase) {
+  const kpPreview = caseData.relatedKnowledgePoints.slice(0, 4).join("、");
+  const kw = caseData.recommendedKeywords.join(", ");
+
+  const expDesignIdeas =
+    caseData.migrationPath?.researchFrontier?.length
+      ? `以 ${caseData.migrationPath.researchFrontier[0]} 为切入点，结合 ${kpPreview} 等基础知识，设计合理的实验方案。`
+      : `围绕 ${caseData.coreProblem}，设计验证性实验方案，确保实验组与对照组的可比性。`;
+
+  const dataAnalysisDir =
+    caseData.migrationPath?.industryApplication?.length
+      ? `参考已获批或临床阶段应用（如 ${caseData.migrationPath.industryApplication[0]}），确定关键评估指标和数据分析策略。`
+      : `对实验数据进行统计分析和可视化呈现，评估结果的显著性和可重复性。`;
+
+  const limitations = [
+    "文献检索范围和时间跨度可能影响结论的全面性",
+    "实验条件与真实产业环境存在差异，需要进一步验证",
+    "学科交叉领域需关注不同研究方向的方法学差异",
+  ];
+
+  return {
+    researchQuestion: caseData.coreProblem,
+    literatureKeywords: kw,
+    experimentalDesignIdeas: expDesignIdeas,
+    dataAnalysisDirection: dataAnalysisDir,
+    possibleLimitations: limitations,
+  };
+}
+
+function DefaultResearchPage() {
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(demoMessages);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -298,4 +370,274 @@ export default function ResearchPage() {
       </div>
     </div>
   );
+}
+
+function CaseDrivenResearchPage({ caseData }: { caseData: IndustryCase }) {
+  const tasks: ResearchTask[] = generateStaticTasks(caseData);
+  const guidance = generateResearchGuidance(caseData);
+
+  return (
+    <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20">
+      <div className="max-w-5xl mx-auto pt-8 md:pt-14">
+
+        <div className="flex items-center gap-2 mb-2">
+          <span className="badge badge-electric text-[11px] font-semibold">案例驱动科研实战</span>
+        </div>
+
+        <h1
+          className="font-display font-extrabold text-brand-ink leading-[1.15] tracking-[-0.03em] mb-2"
+          style={{ fontSize: "clamp(24px, 3.5vw, 40px)" }}
+        >
+          {caseData.title}
+        </h1>
+        <p className="text-brand-muted text-sm md:text-base font-body mb-10">
+          {caseData.subtitle}
+        </p>
+
+        <div className="space-y-6">
+          <section className="glass-card rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
+                <Building2 className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-display font-bold text-base text-brand-ink">
+                  当前科研案例
+                </h2>
+                <p className="text-xs text-brand-muted font-body">
+                  产业案例基础信息与核心问题
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              <div className="rounded-xl bg-blue-50/50 p-3">
+                <p className="text-[10px] font-bold text-brand-faint uppercase tracking-wider mb-0.5">产业方向</p>
+                <p className="text-sm font-semibold text-brand-ink">{caseData.industryDirection}</p>
+              </div>
+              <div className="rounded-xl bg-blue-50/50 p-3">
+                <p className="text-[10px] font-bold text-brand-faint uppercase tracking-wider mb-0.5">证据等级</p>
+                <p className="text-sm font-semibold text-brand-ink">{caseData.evidenceLevel}</p>
+              </div>
+              <div className="rounded-xl bg-blue-50/50 p-3">
+                <p className="text-[10px] font-bold text-brand-faint uppercase tracking-wider mb-0.5">来源类型</p>
+                <p className="text-sm font-semibold text-brand-ink">{caseData.sourceType}</p>
+              </div>
+              <div className="rounded-xl bg-blue-50/50 p-3">
+                <p className="text-[10px] font-bold text-brand-faint uppercase tracking-wider mb-0.5">科研任务</p>
+                <p className="text-sm font-semibold text-brand-ink">{caseData.linkedResearchTask}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-white/60 border border-black/5 p-4">
+              <p className="text-xs font-bold text-brand-faint uppercase tracking-wider mb-1">核心问题</p>
+              <p className="text-sm font-body text-brand-ink leading-relaxed">{caseData.coreProblem}</p>
+            </div>
+          </section>
+
+          <section className="glass-card rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-2.5 mb-4">
+              <BookOpen className="w-4 h-4 text-accent-cyan" />
+              <h2 className="font-display font-bold text-base text-brand-ink">
+                相关知识点
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {caseData.relatedKnowledgePoints.map((kp, i) => (
+                <span key={i} className="badge badge-cyan text-xs">{kp}</span>
+              ))}
+            </div>
+          </section>
+
+          <section className="glass-card rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center">
+                <Microscope className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-display font-bold text-base text-brand-ink">
+                  科研训练任务
+                </h2>
+                <p className="text-xs text-brand-muted font-body">
+                  基于案例核心问题与知识点生成
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {tasks.map((task, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl bg-white/60 border border-black/5 p-5 flex flex-col"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-accent-electric/10 flex items-center justify-center mb-3 text-accent-electric">
+                    {task.icon}
+                  </div>
+                  <h4 className="font-display font-bold text-sm text-brand-ink mb-2">
+                    {task.title}
+                  </h4>
+                  <p className="text-xs text-brand-muted font-body leading-relaxed flex-1">
+                    {task.description}
+                  </p>
+                  <div className="mt-3 pt-3 border-t border-black/5">
+                    <span className="text-[10px] font-semibold text-brand-faint uppercase tracking-wider">
+                      任务类型：{task.type === "literature" ? "文献调研" : task.type === "experiment" ? "实验设计" : "机制分析"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="glass-card rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-cyan to-accent-amber flex items-center justify-center">
+                <TrendingUp className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div>
+                <h2 className="font-display font-bold text-base text-brand-ink">
+                  研究引导
+                </h2>
+                <p className="text-xs text-brand-muted font-body">
+                  基于案例字段模板化生成的研究框架
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl bg-blue-50/40 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="w-3.5 h-3.5 text-accent-electric" />
+                  <h4 className="text-sm font-bold text-brand-ink">研究问题</h4>
+                </div>
+                <p className="text-[13px] text-brand-ink font-body leading-relaxed">{guidance.researchQuestion}</p>
+              </div>
+
+              <div className="rounded-xl bg-blue-50/40 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Hash className="w-3.5 h-3.5 text-accent-cyan" />
+                  <h4 className="text-sm font-bold text-brand-ink">文献检索关键词</h4>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {caseData.recommendedKeywords.map((kw, i) => (
+                    <span key={i} className="text-xs text-brand-muted bg-white/60 px-2 py-0.5 rounded-md font-mono">{kw}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-blue-50/40 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FlaskConical className="w-3.5 h-3.5 text-accent-amber" />
+                  <h4 className="text-sm font-bold text-brand-ink">实验设计思路</h4>
+                </div>
+                <p className="text-[13px] text-brand-muted font-body leading-relaxed">{guidance.experimentalDesignIdeas}</p>
+              </div>
+
+              <div className="rounded-xl bg-blue-50/40 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-3.5 h-3.5 text-accent-electric" />
+                  <h4 className="text-sm font-bold text-brand-ink">数据分析方向</h4>
+                </div>
+                <p className="text-[13px] text-brand-muted font-body leading-relaxed">{guidance.dataAnalysisDirection}</p>
+              </div>
+
+              <div className="rounded-xl bg-amber-50/40 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  <h4 className="text-sm font-bold text-brand-ink">可能局限性</h4>
+                </div>
+                <ul className="space-y-1.5">
+                  {guidance.possibleLimitations.map((lim, i) => (
+                    <li key={i} className="text-[12px] text-brand-muted font-body leading-relaxed flex items-start gap-1.5">
+                      <span className="text-amber-400 mt-0.5 shrink-0">•</span>
+                      {lim}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <Link
+              href="/cases"
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/60 border border-black/5 text-sm font-semibold text-brand-ink hover:bg-white hover:border-black/10 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回产业案例库
+            </Link>
+            <Link
+              href={`/seminar?caseId=${caseData.id}`}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-accent-electric to-accent-cyan text-sm font-semibold text-white hover:opacity-90 transition-all cursor-pointer flex-1 sm:flex-none"
+            >
+              <Presentation className="w-4 h-4" />
+              进入学术研讨
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvalidCasePage() {
+  return (
+    <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20 flex items-center justify-center">
+      <div className="text-center max-w-md mx-auto">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5">
+          <AlertTriangle className="w-8 h-8 text-amber-500" />
+        </div>
+        <h2 className="font-display font-bold text-xl text-brand-ink mb-2">
+          未找到对应产业案例
+        </h2>
+        <p className="text-sm text-brand-muted font-body leading-relaxed mb-6">
+          该案例可能已被移除或 ID 无效。您可以返回产业案例库重新选择感兴趣的案例进行科研实战训练。
+        </p>
+        <Link
+          href="/cases"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-accent-electric to-accent-cyan text-sm font-semibold text-white hover:opacity-90 transition-all cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          返回产业案例库
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default function ResearchPage() {
+  const [caseId, setCaseId] = useState<string | null | undefined>(undefined);
+  const [caseData, setCaseData] = useState<IndustryCase | null>(null);
+  const [caseNotFound, setCaseNotFound] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("caseId");
+    if (id) {
+      setCaseId(id);
+      const found = industryCases.find((c) => c.id === id);
+      if (found) {
+        setCaseData(found);
+      } else {
+        setCaseNotFound(true);
+      }
+    } else {
+      setCaseId(null);
+    }
+  }, []);
+
+  if (caseId === undefined) {
+    return null;
+  }
+
+  if (caseNotFound) {
+    return <InvalidCasePage />;
+  }
+
+  if (caseData) {
+    return <CaseDrivenResearchPage caseData={caseData} />;
+  }
+
+  return <DefaultResearchPage />;
 }
