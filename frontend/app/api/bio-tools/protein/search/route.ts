@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchProteinCandidates } from "@/lib/biotools.mjs";
+import {
+  buildUniProtKeywordSearchUrl,
+  mapUniProtEntryToProteinCandidate,
+  searchProteinCandidates,
+} from "@/lib/biotools.mjs";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -46,37 +50,8 @@ export async function GET(request: NextRequest) {
 
         if (uniRes.ok) {
           const data = await uniRes.json();
-          const name = data?.proteinDescription?.recommendedName?.fullName?.value || trimmed;
-          const gene = data?.genes?.[0]?.geneName?.value || "";
-          const organism = data?.organism?.scientificName || "";
-          const reviewed = data?.entryAudit === "reviewed";
-          const pdbRefs = data?.uniProtKBCrossReferences?.filter(
-            (r: { database: string }) => r.database === "PDB",
-          ) || [];
-          const pdbId = pdbRefs.length > 0 ? pdbRefs[0].id : "";
-
           return NextResponse.json({
-            candidates: [
-              {
-                id: `uniprot-${trimmed}`,
-                label: name,
-                geneName: gene,
-                accession: trimmed,
-                pdbId: pdbId || undefined,
-                organism,
-                reviewed,
-                sourceKind: reviewed ? "experimental" : "predicted",
-                sourceLabel: reviewed ? "UniProtKB/Swiss-Prot" : "UniProtKB/TrEMBL",
-                matchType: "uniprot" as const,
-                teachingFocus: reviewed
-                  ? "经过人工审阅的参考蛋白条目"
-                  : "计算机预测的蛋白条目，部分注释可能未经实验验证",
-                structureUrl: pdbId ? `https://files.rcsb.org/download/${pdbId}.pdb` : undefined,
-                alphaFoldUrl: `https://alphafold.ebi.ac.uk/files/AF-${trimmed}-F1-model_v4.pdb`,
-                uniprotUrl: `https://www.uniprot.org/uniprotkb/${trimmed}/entry`,
-                rcsbUrl: pdbId ? `https://www.rcsb.org/structure/${pdbId}` : undefined,
-              },
-            ],
+            candidates: [mapUniProtEntryToProteinCandidate(data)],
           });
         }
       } catch {
@@ -85,9 +60,34 @@ export async function GET(request: NextRequest) {
     }
 
     const localResults = searchProteinCandidates(trimmed);
+    if (localResults.length > 0) {
+      return NextResponse.json({
+        candidates: localResults,
+      });
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const searchRes = await fetch(buildUniProtKeywordSearchUrl(trimmed), { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (searchRes.ok) {
+        const data = await searchRes.json();
+        const candidates = Array.isArray(data?.results)
+          ? data.results.map(mapUniProtEntryToProteinCandidate).filter((item: { accession?: string }) => item.accession)
+          : [];
+
+        if (candidates.length > 0) {
+          return NextResponse.json({ candidates });
+        }
+      }
+    } catch {
+      // Remote search unavailable, return local empty result below.
+    }
 
     return NextResponse.json({
-      candidates: localResults,
+      candidates: [],
     });
   } catch {
     return NextResponse.json({

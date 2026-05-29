@@ -70,6 +70,7 @@ export default function KnowledgeMapPage() {
   const [expandedDimensionId, setExpandedDimensionId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState(initialDisciplineId);
   const [query, setQuery] = useState("");
+  const workspaceRef = useRef<HTMLElement>(null);
 
   const activeDiscipline = useMemo(
     () => getDisciplineById(activeDisciplineId),
@@ -123,7 +124,15 @@ export default function KnowledgeMapPage() {
       { autoAlpha: 0, y: 32, scale: 0.985 },
       { autoAlpha: 1, y: 0, scale: 1, duration: 0.72, ease: "power3.out" },
     );
+    gsap.fromTo(
+      ".knowledge-workspace .knowledge-reveal",
+      { autoAlpha: 0, y: 24 },
+      { autoAlpha: 1, y: 0, duration: 0.62, stagger: 0.08, ease: "power3.out", delay: 0.08 },
+    );
     ScrollTrigger.refresh();
+    window.setTimeout(() => {
+      workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
   }, [selectedDisciplineId, activeDisciplineId]);
 
   const openDiscipline = (disciplineId: string) => {
@@ -160,7 +169,7 @@ export default function KnowledgeMapPage() {
     <div className="min-h-screen pt-[var(--nav-height)] font-body text-[#111827]">
       <section
         className={`relative overflow-hidden px-5 md:px-10 transition-all duration-700 ${
-          selectedDisciplineId ? "min-h-[52vh] pb-8" : "min-h-screen pb-16"
+          selectedDisciplineId ? "min-h-[46vh] pb-8" : "min-h-screen pb-16"
         }`}
       >
         <div className="absolute inset-0 liquid-hero-bg" />
@@ -169,9 +178,15 @@ export default function KnowledgeMapPage() {
         <div className="absolute right-[10%] top-[20%] h-72 w-72 rounded-full bg-cyan-200/30 blur-3xl" />
         <div className="absolute bottom-[8%] left-[40%] h-64 w-64 rounded-full bg-emerald-200/25 blur-3xl" />
 
-        <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 pt-10 md:pt-16">
-          <div className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-            <div className="knowledge-reveal translate-y-8 opacity-0">
+        <GalaxyGraph
+          activeId={activeDisciplineId}
+          compact={Boolean(selectedDisciplineId)}
+          onSelect={openDiscipline}
+        />
+
+        <div className="pointer-events-none relative z-10 mx-auto flex max-w-7xl flex-col gap-8 pt-10 md:pt-16">
+          <div className={`flex items-center ${selectedDisciplineId ? "min-h-[32vh]" : "min-h-[calc(100vh-var(--nav-height)-8rem)]"}`}>
+            <div className="knowledge-reveal max-w-2xl translate-y-8 opacity-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-[#2563eb] shadow-[inset_0_1px_0_rgba(255,255,255,.8)]">
                 <Network className="h-4 w-4" />
                 BioMentor Knowledge Galaxy
@@ -189,32 +204,26 @@ export default function KnowledgeMapPage() {
               <div className="mt-7 flex flex-wrap gap-3">
                 <button
                   onClick={() => openDiscipline(initialDisciplineId)}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-5 py-3 text-sm font-black text-white shadow-[0_18px_44px_rgba(15,23,42,.18)] transition hover:-translate-y-0.5 hover:bg-[#1f2937]"
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-5 py-3 text-sm font-black text-white shadow-[0_18px_44px_rgba(15,23,42,.18)] transition hover:-translate-y-0.5 hover:bg-[#1f2937]"
                 >
                   进入学科工作台
                   <ChevronRight className="h-4 w-4" />
                 </button>
                 <Link
                   href="/knowledge-map/mindmap"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white/60 px-5 py-3 text-sm font-black text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,.75)] transition hover:-translate-y-0.5 hover:bg-white/90"
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white/60 px-5 py-3 text-sm font-black text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,.75)] transition hover:-translate-y-0.5 hover:bg-white/90"
                 >
                   查看旧版思维导图
                   <Layers3 className="h-4 w-4" />
                 </Link>
               </div>
             </div>
-
-            <GalaxyGraph
-              activeId={activeDisciplineId}
-              compact={Boolean(selectedDisciplineId)}
-              onSelect={openDiscipline}
-            />
           </div>
 
           {selectedDisciplineId && (
             <button
               onClick={() => setSelectedDisciplineId(null)}
-              className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/60 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white"
+              className="pointer-events-auto mx-auto inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/60 px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-white"
             >
               <ArrowLeft className="h-4 w-4" />
               返回沉浸式星图
@@ -225,6 +234,7 @@ export default function KnowledgeMapPage() {
 
       {selectedDisciplineId && (
         <section
+          ref={workspaceRef}
           data-testid="knowledge-workspace"
           className="knowledge-workspace relative z-10 -mt-4 px-5 pb-16 md:px-10"
         >
@@ -258,7 +268,7 @@ export default function KnowledgeMapPage() {
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[260px_minmax(600px,1fr)_390px]">
-              <aside className="knowledge-reveal h-fit translate-y-8 rounded-[30px] border border-white/80 bg-white/58 p-4 opacity-0 shadow-[0_18px_58px_rgba(67,106,160,.11)] backdrop-blur-2xl xl:sticky xl:top-24">
+              <aside className="knowledge-reveal h-fit rounded-[30px] border border-white/80 bg-white/58 p-4 shadow-[0_18px_58px_rgba(67,106,160,.11)] backdrop-blur-2xl xl:sticky xl:top-24">
                 <div className="mb-4 flex items-center gap-2 px-2">
                   <BookOpen className="h-4 w-4 text-[#2563eb]" />
                   <span className="font-display text-sm font-black">12 个学科分支</span>
@@ -327,11 +337,13 @@ function GalaxyGraph({
   return (
     <div
       data-testid="knowledge-galaxy"
-      className={`knowledge-reveal relative mx-auto w-full max-w-3xl translate-y-8 opacity-0 ${
-        compact ? "min-h-[430px]" : "min-h-[620px]"
+      className={`knowledge-reveal pointer-events-none absolute inset-0 z-[1] w-full translate-y-8 opacity-0 ${
+        compact ? "min-h-[430px]" : "min-h-screen"
       }`}
     >
-      <div className="absolute inset-0 rounded-[42px] border border-white/75 bg-white/36 shadow-[inset_0_1px_0_rgba(255,255,255,.82),0_30px_90px_rgba(67,106,160,.14)] backdrop-blur-2xl" />
+      <div className="absolute inset-[7%] rounded-full bg-white/18 blur-3xl" />
+      <div className="absolute right-[4%] top-[11%] h-[56vh] w-[52vw] rounded-full bg-blue-200/25 blur-3xl" />
+      <div className="absolute bottom-[7%] left-[32%] h-[42vh] w-[42vw] rounded-full bg-emerald-200/22 blur-3xl" />
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
         <defs>
           <linearGradient id="galaxy-line" x1="0" x2="1" y1="0" y2="1">
@@ -345,13 +357,15 @@ function GalaxyGraph({
           const to = byId.get(edge.to);
           if (!from || !to) return null;
           const active = edge.from === activeId || edge.to === activeId;
+          const fromPoint = galaxyPoint(from, compact);
+          const toPoint = galaxyPoint(to, compact);
           return (
             <line
               key={`${edge.from}-${edge.to}`}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
+              x1={fromPoint.x}
+              y1={fromPoint.y}
+              x2={toPoint.x}
+              y2={toPoint.y}
               stroke={active ? "rgba(37,99,235,.55)" : "url(#galaxy-line)"}
               strokeWidth={active ? 0.42 : 0.22}
               strokeDasharray={active ? "none" : "1.2 1.5"}
@@ -359,7 +373,10 @@ function GalaxyGraph({
           );
         })}
       </svg>
-      <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/70 shadow-[0_18px_58px_rgba(37,99,235,.16)] backdrop-blur-xl">
+      <div
+        className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/70 shadow-[0_18px_58px_rgba(37,99,235,.16)] backdrop-blur-xl"
+        style={{ left: `${compact ? 50 : 58}%`, top: `${compact ? 50 : 52}%` }}
+      >
         <div className="flex h-full flex-col items-center justify-center text-center">
           <Sparkles className="mb-1 h-5 w-5 text-[#2563eb]" />
           <span className="text-xs font-black text-slate-800">BioMentor</span>
@@ -368,19 +385,20 @@ function GalaxyGraph({
       </div>
       {knowledgeDisciplines.map((discipline) => {
         const active = discipline.id === activeId;
+        const point = galaxyPoint(discipline, compact);
         return (
           <button
             key={discipline.id}
             data-testid={`discipline-${discipline.id}`}
             onClick={() => onSelect(discipline.id)}
-            className={`knowledge-galaxy-node group absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border px-4 py-3 text-left shadow-[0_14px_42px_rgba(67,106,160,.15)] backdrop-blur-2xl transition-all duration-300 hover:z-20 hover:-translate-y-[calc(50%+4px)] ${
+            className={`knowledge-galaxy-node pointer-events-auto group absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border px-4 py-3 text-left shadow-[0_14px_42px_rgba(67,106,160,.15)] backdrop-blur-2xl transition-all duration-300 hover:z-20 hover:-translate-y-[calc(50%+4px)] ${
               active
                 ? "border-white bg-[#111827] text-white"
                 : "border-white/80 bg-white/68 text-slate-700 hover:bg-white"
             }`}
             style={{
-              left: `${discipline.x}%`,
-              top: `${discipline.y}%`,
+              left: `${point.x}%`,
+              top: `${point.y}%`,
               boxShadow: active
                 ? `0 18px 48px ${discipline.color}40`
                 : "0 14px 42px rgba(67,106,160,.15)",
@@ -401,6 +419,22 @@ function GalaxyGraph({
       })}
     </div>
   );
+}
+
+function galaxyPoint(
+  discipline: Pick<KnowledgeDiscipline, "id" | "x" | "y">,
+  compact: boolean,
+): { x: number; y: number } {
+  if (compact) return { x: discipline.x, y: discipline.y };
+  const offsets: Record<string, { x: number; y: number }> = {
+    "structural-biology": { x: 3, y: -4 },
+    "ecology-evolution": { x: 3, y: 6 },
+  };
+  const offset = offsets[discipline.id] || { x: 0, y: 0 };
+  return {
+    x: 28 + discipline.x * 0.74 + offset.x,
+    y: 14 + discipline.y * 0.82 + offset.y,
+  };
 }
 
 function KnowledgeGraph({
@@ -426,7 +460,7 @@ function KnowledgeGraph({
   const selectedPathIds = new Set(getKnowledgePath(discipline.id, selectedNodeId).map((item) => item.id));
 
   return (
-    <main className="knowledge-reveal relative min-h-[720px] translate-y-8 overflow-hidden rounded-[34px] border border-white/85 bg-white/50 opacity-0 shadow-[0_24px_80px_rgba(67,106,160,.13)] backdrop-blur-2xl">
+    <main className="knowledge-reveal relative min-h-[720px] overflow-hidden rounded-[34px] border border-white/85 bg-white/50 shadow-[0_24px_80px_rgba(67,106,160,.13)] backdrop-blur-2xl">
       <div className="absolute inset-0 liquid-hero-bg opacity-70" />
       <div className="bio-network opacity-45" />
       <div className="absolute left-8 top-7 z-20 rounded-full border border-white/80 bg-white/70 px-4 py-2 text-xs font-black text-slate-500">
@@ -659,7 +693,7 @@ function KnowledgeAIChat({
   };
 
   return (
-    <aside className="knowledge-reveal flex h-[720px] translate-y-8 flex-col rounded-[30px] border border-white/85 bg-white/62 p-4 opacity-0 shadow-[0_20px_70px_rgba(67,106,160,.13)] backdrop-blur-2xl xl:sticky xl:top-24">
+    <aside className="knowledge-reveal flex h-[720px] flex-col rounded-[30px] border border-white/85 bg-white/62 p-4 shadow-[0_20px_70px_rgba(67,106,160,.13)] backdrop-blur-2xl xl:sticky xl:top-24">
       <div className="rounded-[24px] border border-white/80 bg-white/70 p-4">
         <div className="mb-3 flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#111827] text-white">

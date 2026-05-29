@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ToolAiRequest, ToolAiResponse } from "@/lib/tool-ai-types";
+import {
+  createHelpfulToolFallback,
+  normalizeToolAiResponse,
+} from "@/lib/tool-ai-response.mjs";
 
 const TOOL_LABELS: Record<string, string> = {
   protein: "蛋白结构",
@@ -67,29 +71,6 @@ ${context.warnings?.length ? `\n注意事项:\n${context.warnings.join("\n")}` :
 请回答学生的问题，尽量结合当前上下文中的事实和教学要点。如果问题超出当前上下文范围，请诚实说明你可以基于什么范围回答。`;
 }
 
-function extractJson(raw: string): string {
-  const trimmed = raw.trim();
-  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) {
-    return codeBlockMatch[1].trim();
-  }
-  const firstBrace = trimmed.indexOf("{");
-  const lastBrace = trimmed.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1);
-  }
-  return trimmed;
-}
-
-function friendlyFallback(tool: string, request: ToolAiRequest): ToolAiResponse {
-  const label = TOOL_LABELS[tool] || tool;
-  return {
-    answer: `我暂时无法生成智能讲解。你仍然可以先查看左侧的结构化分析结果，了解${request.context.title}的${label}信息。`,
-    quickQuestions: [],
-    disclaimer: "本回答用于课程学习和科研训练，不构成医疗、临床或未经验证的实验操作建议。",
-  };
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => null)) as ToolAiRequest | null;
@@ -114,8 +95,7 @@ export async function POST(request: NextRequest) {
     const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
     if (!apiKey) {
-      console.warn(`[tool-chat] DEEPSEEK_API_KEY 未配置，使用友好 fallback`);
-      return NextResponse.json(friendlyFallback(tool, body));
+      return NextResponse.json(createHelpfulToolFallback(tool, body));
     }
 
     const controller = new AbortController();
@@ -144,7 +124,7 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         console.error(`[tool-chat] API 返回错误 ${response.status}`);
-        return NextResponse.json(friendlyFallback(tool, body));
+        return NextResponse.json(createHelpfulToolFallback(tool, body));
       }
 
       const data = await response.json();
@@ -152,40 +132,16 @@ export async function POST(request: NextRequest) {
 
       if (!content) {
         console.error("[tool-chat] API 返回内容为空");
-        return NextResponse.json(friendlyFallback(tool, body));
+        return NextResponse.json(createHelpfulToolFallback(tool, body));
       }
 
-      const jsonStr = extractJson(content);
-      let parsed: Partial<ToolAiResponse>;
-
-      try {
-        parsed = JSON.parse(jsonStr);
-      } catch {
-        console.error("[tool-chat] JSON 解析失败");
-        const fallback = friendlyFallback(tool, body);
-        fallback.answer = typeof content === "string" ? content.slice(0, 500) : fallback.answer;
-        return NextResponse.json(fallback);
-      }
-
-      const result: ToolAiResponse = {
-        answer:
-          typeof parsed.answer === "string" && parsed.answer.trim()
-            ? parsed.answer
-            : friendlyFallback(tool, body).answer,
-        quickQuestions: Array.isArray(parsed.quickQuestions)
-          ? parsed.quickQuestions.filter((q: unknown): q is string => typeof q === "string").slice(0, 4)
-          : [],
-        disclaimer:
-          typeof parsed.disclaimer === "string"
-            ? parsed.disclaimer
-            : "本回答用于课程学习和科研训练，不构成医疗、临床或未经验证的实验操作建议。",
-      };
+      const result: ToolAiResponse = normalizeToolAiResponse(content, tool, body);
 
       return NextResponse.json(result);
     } catch (fetchError) {
       clearTimeout(timeout);
       console.error("[tool-chat] API 调用异常:", fetchError instanceof Error ? fetchError.message : fetchError);
-      return NextResponse.json(friendlyFallback(tool, body));
+      return NextResponse.json(createHelpfulToolFallback(tool, body));
     }
   } catch (err) {
     console.error("[tool-chat] 未预期错误:", err instanceof Error ? err.message : err);

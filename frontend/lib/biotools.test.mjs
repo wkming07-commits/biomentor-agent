@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildAlphaFoldPdbUrl,
   buildRcsbPdbUrl,
+  buildUniProtKeywordSearchUrl,
   calculateNucleotideStats,
   calculateProteinStats,
   describeFeature,
@@ -19,6 +20,7 @@ import {
   reverseComplement,
   sanitizeSequence,
   searchProteinCandidates,
+  mapUniProtEntryToProteinCandidate,
   toCytoscapeElements,
   transcribeDnaToRna,
   translateDna,
@@ -59,6 +61,40 @@ test("returns searchable protein candidates instead of a single hardcoded result
   const accession = searchProteinCandidates("P42212");
   assert.equal(accession[0].sourceKind, "predicted");
   assert.equal(accession[0].accession, "P42212");
+});
+
+test("supports Chinese protein aliases and does not fall back to unrelated demos", () => {
+  const pepsin = searchProteinCandidates("胃蛋白酶");
+  assert.ok(pepsin.length >= 1);
+  assert.match(pepsin[0].label, /胃蛋白酶|Pepsin/i);
+  assert.equal(pepsin[0].accession, "P00790");
+  assert.equal(pepsin[0].sourceKind, "experimental");
+
+  const unknown = searchProteinCandidates("not-a-real-protein-name-xyz");
+  assert.deepEqual(unknown, []);
+});
+
+test("builds UniProt keyword search URLs and maps remote entries to structure candidates", () => {
+  const url = buildUniProtKeywordSearchUrl("pepsin");
+  assert.match(url, /^https:\/\/rest\.uniprot\.org\/uniprotkb\/search\?/);
+  assert.match(url, /query=/);
+  assert.match(url, /fields=/);
+
+  const candidate = mapUniProtEntryToProteinCandidate({
+    primaryAccession: "P00790",
+    entryType: "UniProtKB reviewed (Swiss-Prot)",
+    proteinDescription: {
+      recommendedName: { fullName: { value: "Pepsin A" } },
+    },
+    genes: [{ geneName: { value: "PGA3" } }],
+    organism: { scientificName: "Homo sapiens" },
+    uniProtKBCrossReferences: [{ database: "PDB", id: "1PSO" }],
+  });
+
+  assert.equal(candidate.accession, "P00790");
+  assert.equal(candidate.pdbId, "1PSO");
+  assert.equal(candidate.sourceKind, "experimental");
+  assert.equal(candidate.structureUrl, "https://files.rcsb.org/download/1PSO.pdb");
 });
 
 test("calculates nucleotide stats and translates coding DNA", () => {

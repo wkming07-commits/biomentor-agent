@@ -2,6 +2,7 @@ const STRUCTURE_BASES = {
   rcsbPdb: "https://files.rcsb.org/download",
   alphaFoldFiles: "https://alphafold.ebi.ac.uk/files",
   alphaFoldApi: "https://alphafold.ebi.ac.uk/api/prediction",
+  uniProtSearch: "https://rest.uniprot.org/uniprotkb/search",
   reactomeContent: "https://reactome.org/ContentService",
 };
 
@@ -72,8 +73,29 @@ const proteinAliases = new Map(
         teachingFocus: "DNA 结合结构域、四聚化、突变热点与细胞周期检查点",
       },
     },
+    {
+      keys: ["胃蛋白酶", "pepsin", "pepsin a", "pga3"],
+      value: {
+        id: "pepsin-a",
+        label: "胃蛋白酶 Pepsin A",
+        accession: "P00790",
+        pdbId: "1PSO",
+        organism: "Homo sapiens",
+        source: "UniProtKB/Swiss-Prot + RCSB PDB",
+        confidence: 92.4,
+        teachingFocus: "酸性蛋白酶、催化天冬氨酸、胃内蛋白质消化与活性位点",
+      },
+    },
   ].flatMap(({ keys, value }) => keys.map((key) => [key, value])),
 );
+
+const proteinKeywordAliases = new Map([
+  ["胃蛋白酶", "pepsin"],
+  ["胰岛素", "insulin"],
+  ["血红蛋白", "hemoglobin"],
+  ["绿色荧光蛋白", "green fluorescent protein"],
+  ["肿瘤抑制蛋白", "tumor protein p53"],
+]);
 
 export const sampleDnaSequence =
   "ATGGCCGTGAAGCTGGAATCTTTCGTGCTGAGCTTCGTGCTGATCGCTAGCTAGCTAAGGATCCGCTGAATTCTAA";
@@ -271,6 +293,62 @@ export function buildAlphaFoldApiUrl(accession) {
   return `${STRUCTURE_BASES.alphaFoldApi}/${String(accession).trim().toUpperCase()}`;
 }
 
+export function normalizeProteinKeyword(query) {
+  const raw = String(query || "").trim();
+  return proteinKeywordAliases.get(raw) || raw;
+}
+
+export function buildUniProtKeywordSearchUrl(query) {
+  const keyword = normalizeProteinKeyword(query);
+  const params = new URLSearchParams({
+    query: `(${keyword}) AND (reviewed:true OR organism_id:9606)`,
+    fields: "accession,id,protein_name,gene_names,organism_name,reviewed,structure_3d",
+    format: "json",
+    size: "8",
+  });
+  return `${STRUCTURE_BASES.uniProtSearch}?${params.toString()}`;
+}
+
+export function mapUniProtEntryToProteinCandidate(entry) {
+  const accession = String(entry?.primaryAccession || entry?.uniProtkbId || "").toUpperCase();
+  const name =
+    entry?.proteinDescription?.recommendedName?.fullName?.value ||
+    entry?.proteinDescription?.submissionNames?.[0]?.fullName?.value ||
+    entry?.uniProtkbId ||
+    accession;
+  const gene = entry?.genes?.[0]?.geneName?.value || entry?.genes?.[0]?.orderedLocusNames?.[0]?.value || "";
+  const organism = entry?.organism?.scientificName || entry?.organism?.commonName || "";
+  const pdbRefs = Array.isArray(entry?.uniProtKBCrossReferences)
+    ? entry.uniProtKBCrossReferences.filter((ref) => ref?.database === "PDB")
+    : [];
+  const pdbId = pdbRefs[0]?.id ? String(pdbRefs[0].id).toUpperCase() : "";
+  const reviewed = String(entry?.entryType || "").toLowerCase().includes("reviewed") || entry?.reviewed === true;
+  const hasExperimentalStructure = Boolean(pdbId);
+
+  return {
+    id: accession ? `uniprot-${accession.toLowerCase()}` : slugForProtein(name),
+    label: name,
+    geneName: gene,
+    accession,
+    pdbId: pdbId || undefined,
+    organism,
+    reviewed,
+    source: hasExperimentalStructure ? "UniProtKB + RCSB PDB" : "UniProtKB + AlphaFold DB",
+    sourceKind: hasExperimentalStructure ? "experimental" : "predicted",
+    sourceLabel: hasExperimentalStructure ? "RCSB PDB 实验结构" : "AlphaFold 预测结构",
+    confidence: null,
+    teachingFocus: hasExperimentalStructure
+      ? "该候选关联了实验解析结构，可直接进入三维结构观察。"
+      : "该候选暂无 PDB 实验结构，将优先尝试 AlphaFold 预测模型。",
+    structureUrl: hasExperimentalStructure ? buildRcsbPdbUrl(pdbId) : buildAlphaFoldPdbUrl(accession),
+    alphaFoldUrl: accession ? buildAlphaFoldPdbUrl(accession) : "",
+    alphaFoldApiUrl: accession ? buildAlphaFoldApiUrl(accession) : "",
+    uniprotUrl: accession ? `https://www.uniprot.org/uniprotkb/${accession}/entry` : "",
+    rcsbUrl: pdbId ? `https://www.rcsb.org/structure/${pdbId}` : "",
+    matchType: "uniprot",
+  };
+}
+
 export function buildReactomeQueryUrl(query) {
   const q = encodeURIComponent(String(query).trim());
   return `${STRUCTURE_BASES.reactomeContent}/search/query?query=${q}&species=Homo%20sapiens&pageSize=8`;
@@ -400,17 +478,27 @@ export function searchProteinCandidates(query) {
     return haystack.includes(q);
   });
 
-  const results = matches.length ? matches : unique.filter((record) => ["gfp", "cas9", "hemoglobin"].includes(record.id));
+  const results = matches;
   return results.map((record) => ({
     ...record,
     pdbId: record.pdbId.toUpperCase(),
     accession: record.accession.toUpperCase(),
-    sourceKind: "curated",
+    reviewed: record.reviewed ?? Boolean(record.accession),
+    sourceKind: record.pdbId ? "experimental" : "predicted",
+    sourceLabel: record.pdbId ? "RCSB PDB 实验结构" : "AlphaFold 预测结构",
     structureUrl: buildRcsbPdbUrl(record.pdbId),
     alphaFoldUrl: buildAlphaFoldPdbUrl(record.accession),
     alphaFoldApiUrl: buildAlphaFoldApiUrl(record.accession),
     matchType: "curated",
   }));
+}
+
+function slugForProtein(value) {
+  return String(value || "protein")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]+/g, "")
+    .replace(/^-+|-+$/g, "") || "protein";
 }
 
 export function sanitizeSequence(input) {

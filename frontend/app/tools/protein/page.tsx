@@ -35,6 +35,7 @@ interface ProteinCandidate {
 }
 
 const suggestions = ["GFP", "Cas9", "4HHB", "P42212", "insulin", "TP53"];
+const initialProteinCandidates = searchProteinCandidates("GFP") as ProteinCandidate[];
 const styles = [
   { key: "cartoon", label: "卡通", icon: Layers },
   { key: "stick", label: "棒状", icon: FlaskConical },
@@ -70,8 +71,8 @@ function buildProteinContext(candidate: ProteinCandidate): ToolContextSummary {
 
 export default function ProteinPage() {
   const [query, setQuery] = useState("GFP");
-  const [candidates, setCandidates] = useState<ProteinCandidate[]>(() => searchProteinCandidates("GFP") as ProteinCandidate[]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<ProteinCandidate[]>(initialProteinCandidates);
+  const [selectedId, setSelectedId] = useState<string | null>(initialProteinCandidates[0]?.id || null);
   const [isSearching, setIsSearching] = useState(false);
   const [viewerReady, setViewerReady] = useState(false);
   const [viewerStatus, setViewerStatus] = useState("正在准备结构查看器");
@@ -93,7 +94,9 @@ export default function ProteinPage() {
         const res = await fetch(`/api/bio-tools/protein/search?query=${encodeURIComponent(nextQuery)}`);
         if (res.ok) {
           const data = await res.json();
-          setCandidates(data.candidates as ProteinCandidate[]);
+          const nextCandidates = (data.candidates || []) as ProteinCandidate[];
+          setCandidates(nextCandidates);
+          setSelectedId(nextCandidates[0]?.id || null);
           setIsSearching(false);
           return;
         }
@@ -103,6 +106,7 @@ export default function ProteinPage() {
 
       const results = searchProteinCandidates(nextQuery) as ProteinCandidate[];
       setCandidates(results);
+      setSelectedId(results[0]?.id || null);
       setIsSearching(false);
     },
     [query],
