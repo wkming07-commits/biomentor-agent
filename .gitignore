@@ -34,3 +34,5 @@ Thumbs.db
 
 # Local brainstorming mockups
 .superpowers/
+*.db-shm
+*.db-wal
