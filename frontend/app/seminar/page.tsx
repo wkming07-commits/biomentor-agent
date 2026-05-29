@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { industryCases } from "@/data/industryCases";
 import type { DefenseBrief, DefenseTranscriptItem } from "@/lib/defense-flow";
 
 type Difficulty = "basic" | "standard" | "challenge";
@@ -66,9 +67,39 @@ export default function SeminarPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const caseId = params.get("caseId");
     const topic = params.get("topic");
     const source = params.get("source");
     const summary = params.get("summary");
+
+    if (caseId) {
+      const caseData = industryCases.find((item) => item.id === caseId);
+      if (!caseData) {
+        setStatusText("未找到对应产业案例，你可以继续粘贴材料生成答辩资料包。");
+        return;
+      }
+
+      const label = `站内导入：产业案例`;
+      setSourceLabel(label);
+      setSourceText(
+        [
+          `题目：${caseData.title}`,
+          `来源：${label}`,
+          `背景：${caseData.background || caseData.subtitle}`,
+          `核心问题：${caseData.coreProblem}`,
+          `研究基础：${caseData.researchFoundation}`,
+          `应用价值：${caseData.applicationValue}`,
+          `产业方向：${caseData.industryDirection}`,
+          `证据等级：${caseData.evidenceLevel}`,
+          `来源类型：${caseData.sourceType}`,
+          `相关知识点：${caseData.relatedKnowledgePoints.join("、")}`,
+          `推荐检索词：${caseData.recommendedKeywords.join("、")}`,
+          `方法：结合机制解释、证据判断、实验设计与产业转化路径，组织为可答辩的研究主题。`,
+        ].join("\n"),
+      );
+      return;
+    }
+
     if (!topic && !summary) return;
     const label = source ? `站内导入：${source}` : "站内导入";
     setSourceLabel(label);
