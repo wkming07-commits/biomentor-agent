@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, ChevronRight, FileUp, FlaskConical, Layers, RotateCw, Search, ZoomIn } from "lucide-react";
+import { ArrowLeft, Box, ChevronRight, FileUp, FlaskConical, Layers, RotateCw, Search, ZoomIn } from "lucide-react";
 
 import { searchProteinCandidates } from "@/lib/biotools.mjs";
 import BioMentorToolChat from "@/components/BioMentorToolChat";
@@ -172,6 +172,13 @@ export default function ProteinPage() {
         <header className="liquid-card p-6 md:p-8 overflow-hidden relative">
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl" />
           <div className="relative z-10">
+            <Link
+              href="/tools"
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-white"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              返回工具箱
+            </Link>
             <p className="section-title">Protein Explorer</p>
             <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">蛋白结构查看器</h1>
             <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useRef } from "react";
-import { ArrowRightLeft, BarChart3, Dna, FileUp, Flame, Scissors, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, BarChart3, Dna, FileUp, Flame, Scissors, Upload } from "lucide-react";
 
 import {
   calculateNucleotideStats,
@@ -153,6 +153,13 @@ export default function SequencePage() {
     <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-12 font-body">
       <div className="max-w-7xl mx-auto pt-8 space-y-6">
         <header className="liquid-card p-6 md:p-8">
+          <Link
+            href="/tools"
+            className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回工具箱
+          </Link>
           <p className="section-title">Sequence Lab</p>
           <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">序列分析工具</h1>
           <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">

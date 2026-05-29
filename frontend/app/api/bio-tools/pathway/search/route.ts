@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { matchLocalPathway, pathwayCatalog } from "@/lib/biotools.mjs";
+import { getCommonPathwayCandidates, matchLocalPathway, pathwayCatalog } from "@/lib/biotools.mjs";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -80,6 +80,21 @@ export async function GET(request: NextRequest) {
     }
   } catch {
     // Reactome unavailable, return local results only
+  }
+
+  const seen = new Set(results.map((item) => item.id));
+  for (const candidate of getCommonPathwayCandidates(trimmed)) {
+    if (!seen.has(candidate.id)) {
+      results.push({
+        id: candidate.id,
+        name: candidate.name,
+        species: candidate.species,
+        source: "reactome",
+        description: candidate.description,
+        reactomeUrl: candidate.reactomeUrl,
+      });
+      seen.add(candidate.id);
+    }
   }
 
   return NextResponse.json({ candidates: results });

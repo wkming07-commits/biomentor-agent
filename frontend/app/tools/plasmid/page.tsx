@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, FileText, FileUp, Upload } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, FileText, FileUp, Upload } from "lucide-react";
 
 import { calculateNucleotideStats, circularFeaturePath, describeFeature, detectPlasmidInputKind, parseGenBankFeatures, plasmidExamples } from "@/lib/biotools.mjs";
 import BioMentorToolChat from "@/components/BioMentorToolChat";
@@ -28,15 +28,18 @@ export default function PlasmidPage() {
 
   const basePlasmid = plasmidExamples[selectedPlasmid];
   const uploadedLength = uploadedText ? calculateNucleotideStats(uploadedText).length : 0;
+  const inputKind = uploadedText ? detectPlasmidInputKind(uploadedText) : "builtin";
+  const isUnsupportedUpload = Boolean(uploadedText) && inputKind === "unknown";
   const parsedFeatures = useMemo(
-    () => (uploadedText ? parseGenBankFeatures(uploadedText, uploadedLength || basePlasmid.length) : basePlasmid.features),
-    [basePlasmid.features, basePlasmid.length, uploadedLength, uploadedText],
+    () => {
+      if (isUnsupportedUpload) return [];
+      return uploadedText ? parseGenBankFeatures(uploadedText, uploadedLength || basePlasmid.length) : basePlasmid.features;
+    },
+    [basePlasmid.features, basePlasmid.length, isUnsupportedUpload, uploadedLength, uploadedText],
   );
   const plasmidLength = uploadedText ? Math.max(uploadedLength || 0, ...parsedFeatures.map((f) => f.end), 1) : basePlasmid.length;
   const selectedFeature = parsedFeatures.find((feature) => featureKey(feature) === selectedFeatureKey) || parsedFeatures[0];
   const isFastaLikeUpload = Boolean(uploadedText) && parsedFeatures.length === 1 && parsedFeatures[0]?.label === "uploaded sequence";
-
-  const inputKind = uploadedText ? detectPlasmidInputKind(uploadedText) : "builtin";
 
   const aiContext: ToolContextSummary = useMemo(() => {
     const kindLabel =
@@ -55,14 +58,18 @@ export default function PlasmidPage() {
       ],
       highlights: [
         uploadedName ? `上传文件: ${uploadedName}` : basePlasmid.notes,
-        selectedFeature ? describeFeature(selectedFeature) : "点击图谱或元件列表查看解释。",
+        isUnsupportedUpload
+          ? "当前文件无法识别为可解析的质粒序列格式。"
+          : selectedFeature ? describeFeature(selectedFeature) : "点击图谱或元件列表查看解释。",
       ],
       warnings:
-        inputKind === "fasta" || inputKind === "raw-sequence"
+        isUnsupportedUpload
+          ? ["当前文件无法识别为 GenBank、FASTA 或纯 DNA 序列。请导出为带 FEATURES 的 GenBank 文本后重试。"]
+          : inputKind === "fasta" || inputKind === "raw-sequence"
           ? ["当前输入为未经注释的序列，无法推断 ori、抗性基因、promoter 等功能元件。如需完整元件注释，请上传 GenBank 格式文件。"]
           : undefined,
     };
-  }, [uploadedName, basePlasmid, plasmidLength, inputKind, uploadedText, parsedFeatures.length, selectedFeature]);
+  }, [uploadedName, basePlasmid, plasmidLength, inputKind, uploadedText, parsedFeatures.length, selectedFeature, isUnsupportedUpload]);
 
   const aiContextKey = useMemo(
     () => (uploadedText ? `upload-${uploadedName}-${uploadedText.slice(0, 80)}` : `builtin-${selectedPlasmid}`),
@@ -86,10 +93,17 @@ export default function PlasmidPage() {
     <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-12 font-body">
       <div className="max-w-7xl mx-auto pt-8 space-y-6">
         <header className="liquid-card p-6 md:p-8">
+          <Link
+            href="/tools"
+            className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回工具箱
+          </Link>
           <p className="section-title">Plasmid Designer</p>
           <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">质粒图谱查看器</h1>
           <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
-            选择经典质粒或上传 GenBank / FASTA，查看环形图谱、元件解释和实验设计提示。
+            选择经典质粒或上传带 FEATURES 注释的 GenBank 文件查看完整元件图谱；FASTA / TXT 仅显示整段序列轨道，不会自动识别 ori、抗性基因或 promoter。
           </p>
           <Link
             href="/seminar?source=质粒图谱工具&topic=质粒设计与表达策略答辩&summary=围绕载体元件、复制起点、筛选标记、启动子、插入片段和表达策略展开答辩。"
@@ -124,43 +138,63 @@ export default function PlasmidPage() {
               </button>
             </div>
 
+            <div className="rounded-3xl border border-white/80 bg-white/52 px-4 py-3 text-sm leading-7 text-brand-muted">
+              推荐上传 `.gb` / `.gbk` / `.genbank` 且包含 `FEATURES` 注释的文本文件。`.fa` / `.fasta` / `.txt` 只用于读取序列长度；暂不支持 SnapGene `.dna`、ApE 二进制、Benchling 私有格式、图片或 PDF。
+            </div>
+
             {isFastaLikeUpload && (
               <div className="rounded-3xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
                 已识别为未注释序列。当前显示整段序列轨道；如需 ori、抗性基因、promoter 等完整元件，请上传 GenBank 文件。
               </div>
             )}
 
+            {uploadedText && inputKind === "unknown" && (
+              <div className="rounded-3xl border border-rose-200 bg-rose-50/75 px-4 py-3 text-sm leading-7 text-rose-900">
+                当前文件无法识别为 GenBank、FASTA 或纯 DNA 序列。请导出为带 FEATURES 的 GenBank 文本，或粘贴标准 FASTA / DNA 序列后重试。
+              </div>
+            )}
+
             <div className="liquid-card p-5 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-5 items-center">
-              <svg viewBox="0 0 420 420" className="w-full max-w-[460px] mx-auto" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <filter id="feature-glow"><feDropShadow dx="0" dy="0" stdDeviation="4" floodOpacity="0.35" /></filter>
-                </defs>
-                <circle cx="210" cy="210" r="174" fill="#111827" />
-                <circle cx="210" cy="210" r="144" fill="none" stroke="#334155" strokeWidth="1.5" strokeDasharray="6 8" />
-                {parsedFeatures.map((feature) => {
-                  const selected = featureKey(feature) === featureKey(selectedFeature);
-                  return (
-                    <path
-                      key={featureKey(feature)}
-                      d={circularFeaturePath(feature, plasmidLength, 144, 210)}
-                      stroke={feature.color}
-                      strokeWidth={selected ? 32 : 24}
-                      fill="none"
-                      strokeLinecap="butt"
-                      filter={selected ? "url(#feature-glow)" : undefined}
-                      onClick={() => setSelectedFeatureKey(featureKey(feature))}
-                      className="cursor-pointer transition-all"
-                    />
-                  );
-                })}
-                <circle cx="210" cy="210" r="8" fill="#e5e7eb" />
-                <text x="210" y="202" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="800" fontFamily="system-ui, sans-serif">
-                  {uploadedName || basePlasmid.name}
-                </text>
-                <text x="210" y="226" textAnchor="middle" fill="#cbd5e1" fontSize="12" fontFamily="system-ui, sans-serif">
-                  {plasmidLength} bp
-                </text>
-              </svg>
+              {isUnsupportedUpload ? (
+                <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-rose-200 bg-rose-50/70 px-6 text-center">
+                  <FileText className="mb-4 h-10 w-10 text-rose-500" />
+                  <h3 className="font-display text-xl font-black text-[#111827]">无法生成质粒图谱</h3>
+                  <p className="mt-3 max-w-md text-sm leading-7 text-rose-900">
+                    当前文件不是可解析的 GenBank / FASTA / 纯 DNA 序列。请重新导出为带 FEATURES 注释的 GenBank 文本，或上传标准 FASTA。
+                  </p>
+                </div>
+              ) : (
+                <svg viewBox="0 0 420 420" className="w-full max-w-[460px] mx-auto" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <filter id="feature-glow"><feDropShadow dx="0" dy="0" stdDeviation="4" floodOpacity="0.35" /></filter>
+                  </defs>
+                  <circle cx="210" cy="210" r="174" fill="#111827" />
+                  <circle cx="210" cy="210" r="144" fill="none" stroke="#334155" strokeWidth="1.5" strokeDasharray="6 8" />
+                  {parsedFeatures.map((feature) => {
+                    const selected = selectedFeature ? featureKey(feature) === featureKey(selectedFeature) : false;
+                    return (
+                      <path
+                        key={featureKey(feature)}
+                        d={circularFeaturePath(feature, plasmidLength, 144, 210)}
+                        stroke={feature.color}
+                        strokeWidth={selected ? 32 : 24}
+                        fill="none"
+                        strokeLinecap="butt"
+                        filter={selected ? "url(#feature-glow)" : undefined}
+                        onClick={() => setSelectedFeatureKey(featureKey(feature))}
+                        className="cursor-pointer transition-all"
+                      />
+                    );
+                  })}
+                  <circle cx="210" cy="210" r="8" fill="#e5e7eb" />
+                  <text x="210" y="202" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="800" fontFamily="system-ui, sans-serif">
+                    {uploadedName || basePlasmid.name}
+                  </text>
+                  <text x="210" y="226" textAnchor="middle" fill="#cbd5e1" fontSize="12" fontFamily="system-ui, sans-serif">
+                    {plasmidLength} bp
+                  </text>
+                </svg>
+              )}
 
               <div className="space-y-3">
                 <div className="rounded-3xl bg-white/55 border border-white/80 p-4">
@@ -179,9 +213,10 @@ export default function PlasmidPage() {
               </div>
             </div>
 
+            {!isUnsupportedUpload && (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
               {parsedFeatures.map((feature) => {
-                const selected = featureKey(feature) === featureKey(selectedFeature);
+                const selected = selectedFeature ? featureKey(feature) === featureKey(selectedFeature) : false;
                 return (
                   <button
                     key={`${featureKey(feature)}-legend`}
@@ -194,6 +229,7 @@ export default function PlasmidPage() {
                 );
               })}
             </div>
+            )}
           </main>
 
           <BioMentorToolChat

@@ -52,6 +52,31 @@ function safeDim(v: unknown) { const o = v && typeof v === "object" ? v as Recor
 function safeMod(v: unknown) { const o = v && typeof v === "object" ? v as Record<string,unknown> : {}; return { label: safeStr(o.label, ""), href: safeStr(o.href, "#"), reason: safeStr(o.reason, "") }; }
 const defaultModules = [{ label: "知识图谱", href: "/knowledge-map", reason: "补齐前置概念" }, { label: "科研实战", href: "/research", reason: "完成科研任务训练" }, { label: "文献工作台", href: "/paper-workbench", reason: "管理答辩文献" }];
 
+function normalizeDefenseReport(value: Partial<DefenseReport> | null | undefined): DefenseReport {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const dimensions = safeArr(source.dimensions, []).length > 0
+    ? safeArr(source.dimensions, []).map(safeDim).filter((item) => item.label)
+    : [
+        { label: "问题意识", score: 70, comment: "当前答辩记录较短，建议继续补充研究问题和假设。" },
+        { label: "方法设计", score: 70, comment: "需要进一步说明实验路线、对照和可重复性。" },
+        { label: "证据表达", score: 68, comment: "建议补充关键证据、预期结果和判断标准。" },
+      ];
+  const moduleRecommendations = safeArr(source.moduleRecommendations, []).map(safeMod).filter((item) => item.label) || [];
+
+  return {
+    totalScore: safeNum(source.totalScore, 70),
+    dimensions,
+    committeeFeedback: safeStr(source.committeeFeedback, "已生成阶段性报告。由于答辩轮次较少，建议继续完成更多追问以获得更稳定的训练反馈。"),
+    weakPoints: safeArr<string>(source.weakPoints, []).length > 0
+      ? safeArr<string>(source.weakPoints, [])
+      : ["答辩轮次较少，薄弱点需要更多回答样本才能稳定判断。"],
+    moduleRecommendations: moduleRecommendations.length > 0 ? moduleRecommendations : defaultModules,
+    nextDefenseTopics: safeArr<string>(source.nextDefenseTopics, []).length > 0
+      ? safeArr<string>(source.nextDefenseTopics, [])
+      : ["补充研究背景、方法路线和预期结果后再次答辩"],
+  };
+}
+
 export default function SeminarPage() {
   const [stage, setStage] = useState<Stage>("source");
   const [sourceText, setSourceText] = useState(seedText);
@@ -220,7 +245,7 @@ export default function SeminarPage() {
   }
 
   async function finishReport(finalTranscript = transcript) {
-    if (!brief) return;
+    if (!brief || isLoading) return;
     setIsLoading(true);
     setStatusText("正在生成闭环答辩报告");
     try {
@@ -231,7 +256,7 @@ export default function SeminarPage() {
       });
       const result = await res.json();
       if (!result?.data) throw new Error("empty report");
-      setReport(result.data);
+      setReport(normalizeDefenseReport(result.data));
       setStage("report");
     } catch {
       setStatusText("报告生成失败，请稍后重试。");
@@ -445,8 +470,12 @@ export default function SeminarPage() {
                     <div className="text-xs font-black text-slate-400">第 {Math.min(turnIndex + 1, turnLimit)} / {turnLimit} 轮</div>
                     <h2 className="font-display text-xl font-black">答辩室</h2>
                   </div>
-                  <button onClick={() => finishReport()} className="rounded-2xl border border-white/80 bg-white/70 px-4 py-2 text-xs font-black text-slate-600 hover:bg-white">
-                    提前生成报告
+                  <button
+                    onClick={() => finishReport()}
+                    disabled={isLoading}
+                    className="rounded-2xl border border-white/80 bg-white/70 px-4 py-2 text-xs font-black text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {isLoading ? "等待追问生成" : "提前生成报告"}
                   </button>
                 </div>
                 <div className="flex-1 space-y-4 overflow-y-auto pr-1">

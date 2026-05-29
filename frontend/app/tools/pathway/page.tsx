@@ -4,6 +4,7 @@ import Link from "next/link";
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
+  ArrowLeft,
   ArrowRight,
   ChevronRight,
   ExternalLink,
@@ -51,6 +52,7 @@ const DEFAULT_LOCAL_KEY: PathwayKey = "cell-cycle";
 export default function PathwayPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [candidates, setCandidates] = useState<PathwayCandidate[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [activeLocalKey, setActiveLocalKey] = useState<PathwayKey>(DEFAULT_LOCAL_KEY);
   const [activeReactomeCandidate, setActiveReactomeCandidate] = useState<PathwayCandidate | null>(null);
@@ -68,6 +70,7 @@ export default function PathwayPage() {
     const q = searchQuery.trim();
     if (!q) return;
     setSearchLoading(true);
+    setHasSearched(true);
     try {
       const res = await fetch(`/api/bio-tools/pathway/search?query=${encodeURIComponent(q)}`);
       if (res.ok) {
@@ -284,6 +287,13 @@ export default function PathwayPage() {
 
       <div className="max-w-7xl mx-auto pt-8 space-y-6">
         <header className="liquid-card p-6 md:p-8">
+          <Link
+            href="/tools"
+            className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-3 py-1.5 text-xs font-black text-slate-600 transition hover:bg-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回工具箱
+          </Link>
           <p className="section-title">Pathway Graph</p>
           <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">
             通路知识图谱
@@ -376,6 +386,12 @@ export default function PathwayPage() {
                       </button>
                     );
                   })}
+                </div>
+              )}
+
+              {hasSearched && !searchLoading && candidates.length === 0 && (
+                <div className="mt-4 rounded-3xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm leading-7 text-amber-900">
+                  暂未找到候选。可以尝试英文全称或常用缩写，例如 PI3K、Wnt、Notch、TCA、JAK-STAT、TGF-beta、NF-kB。
                 </div>
               )}
             </div>

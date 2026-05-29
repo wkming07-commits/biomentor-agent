@@ -146,13 +146,13 @@ export default function KnowledgeMapPage() {
 
         <div className="pointer-events-none relative z-10 mx-auto flex max-w-7xl flex-col gap-8 pt-10 md:pt-16">
           <div className={`flex items-center ${selectedDisciplineId ? "min-h-[30vh]" : "min-h-[calc(100vh-var(--nav-height)-8rem)]"}`}>
-            <div className={`knowledge-reveal ${selectedDisciplineId ? "max-w-[340px]" : "max-w-2xl"}`}>
+            <div className={`knowledge-reveal ${selectedDisciplineId ? "max-w-[320px]" : "max-w-[430px]"}`}>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-4 py-2 text-xs font-black tracking-[0.16em] text-[#2563eb] shadow-[inset_0_1px_0_rgba(255,255,255,.8)]">
                 <Network className="h-4 w-4" />
                 BioMentor 知识星图
               </div>
-              <h1 className={`mt-6 max-w-3xl font-display font-black leading-[0.94] tracking-[-0.05em] text-[#0f172a] ${
-                selectedDisciplineId ? "text-[clamp(30px,3.8vw,48px)]" : "text-[clamp(42px,7vw,92px)]"
+              <h1 className={`mt-5 max-w-3xl font-display font-black leading-[0.96] tracking-[-0.05em] text-[#0f172a] ${
+                selectedDisciplineId ? "text-[clamp(28px,3.4vw,44px)]" : "text-[clamp(34px,4.4vw,58px)]"
               }`}>
                 生命科学
                 <span className="block bg-gradient-to-r from-[#2563eb] via-[#06b6d4] to-[#10b981] bg-clip-text text-transparent">
@@ -160,7 +160,7 @@ export default function KnowledgeMapPage() {
                 </span>
               </h1>
               {!selectedDisciplineId && (
-                <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
+                <p className="mt-5 max-w-[420px] text-sm leading-7 text-slate-600 md:text-base">
                   先从 12 个生物学科构成的全局网络进入，再平滑过渡到某个学科的六维知识工作台：
                   生物大类、基础知识、科研前沿、产业应用、代表文献与学习任务。
                 </p>
@@ -319,13 +319,13 @@ function GalaxyGraph({
       data-testid="knowledge-galaxy"
       className={`knowledge-reveal pointer-events-none absolute z-[1] ${
         compact
-          ? "left-[35%] right-[1%] top-0 h-[430px] min-h-[430px] max-lg:left-[30%] max-md:left-0 max-md:top-[30%] max-md:h-[54vh]"
+          ? "left-[38%] right-[1%] top-0 h-[430px] min-h-[430px] max-lg:left-[32%] max-md:left-0 max-md:top-[30%] max-md:h-[54vh]"
           : "inset-0 min-h-screen w-full"
       }`}
     >
-      <div className="absolute right-[2%] top-[8%] h-[68vh] w-[58vw] rounded-full bg-white/20 blur-3xl" />
-      <div className="absolute right-[5%] top-[14%] h-[58vh] w-[46vw] rounded-full bg-blue-200/18 blur-3xl" />
-      <div className="absolute bottom-[8%] right-[8%] h-[44vh] w-[38vw] rounded-full bg-emerald-200/16 blur-3xl" />
+      <div className="absolute left-1/2 top-1/2 h-[78vh] w-[72vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/22 blur-3xl" />
+      <div className="absolute left-[54%] top-[46%] h-[64vh] w-[54vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-200/18 blur-3xl" />
+      <div className="absolute bottom-[8%] left-[56%] h-[46vh] w-[44vw] -translate-x-1/2 rounded-full bg-emerald-200/16 blur-3xl" />
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
         <defs>
           <linearGradient id="galaxy-line" x1="0" x2="1" y1="0" y2="1">
@@ -361,8 +361,8 @@ function GalaxyGraph({
         })}
       </svg>
       <div
-        className={`${compact ? "h-24 w-24" : "h-32 w-32"} absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/70 shadow-[0_18px_58px_rgba(37,99,235,.16)] backdrop-blur-xl`}
-        style={{ left: `${compact ? 55 : 60}%`, top: `${compact ? 50 : 52}%` }}
+        className={`${compact ? "h-24 w-24" : "h-36 w-36"} absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/72 shadow-[0_22px_72px_rgba(37,99,235,.18)] backdrop-blur-xl`}
+        style={{ left: `${compact ? 58 : 55}%`, top: `${compact ? 50 : 52}%` }}
       >
         <div className="flex h-full flex-col items-center justify-center text-center">
           <Sparkles className="mb-1 h-5 w-5 text-[#2563eb]" />
@@ -386,7 +386,7 @@ function GalaxyGraph({
                 : related
                   ? "border-white/90 bg-white/72 text-slate-700 hover:bg-white"
                   : "border-white/70 bg-white/42 text-slate-500 hover:bg-white"
-            } ${compact ? "px-3 py-2" : "px-4 py-2.5"}`}
+            } ${compact ? "px-3 py-2" : "px-5 py-3"}`}
             style={{
               left: `${point.x}%`,
               top: `${point.y}%`,
@@ -401,7 +401,7 @@ function GalaxyGraph({
               style={{ background: discipline.color, boxShadow: `0 0 18px ${discipline.color}` }}
             />
             <span>
-              <span className={`${compact ? "text-[11px] md:text-xs" : "text-xs md:text-sm"} block font-black`}>
+              <span className={`${compact ? "text-[11px] md:text-xs" : "text-sm md:text-[15px]"} block font-black`}>
                 {discipline.label}
               </span>
             </span>
@@ -434,13 +434,13 @@ function galaxyPoint(
     return compactPositions[discipline.id] || { x: 56, y: 50 };
   }
   const offsets: Record<string, { x: number; y: number }> = {
-    "structural-biology": { x: 3, y: -4 },
-    "ecology-evolution": { x: 3, y: 6 },
+    "structural-biology": { x: 2, y: -5 },
+    "ecology-evolution": { x: 2, y: 5 },
   };
   const offset = offsets[discipline.id] || { x: 0, y: 0 };
   return {
-    x: 49 + discipline.x * 0.5 + offset.x,
-    y: 8 + discipline.y * 0.82 + offset.y,
+    x: 55 + (discipline.x - 50) * 0.82 + offset.x,
+    y: 52 + (discipline.y - 50) * 0.86 + offset.y,
   };
 }
 
@@ -467,7 +467,7 @@ function KnowledgeGraph({
   const selectedPathIds = new Set(getKnowledgePath(discipline.id, selectedNodeId).map((item) => item.id));
 
   return (
-    <main className="knowledge-reveal relative min-h-[720px] overflow-hidden rounded-[34px] border border-white/85 bg-white/50 shadow-[0_24px_80px_rgba(67,106,160,.13)] backdrop-blur-2xl">
+    <main className="knowledge-reveal relative min-h-[800px] overflow-hidden rounded-[34px] border border-white/85 bg-white/50 shadow-[0_24px_80px_rgba(67,106,160,.13)] backdrop-blur-2xl">
       <div className="absolute inset-0 liquid-hero-bg opacity-70" />
       <div className="bio-network opacity-45" />
       <div className="absolute left-8 top-7 z-20 rounded-full border border-white/80 bg-white/70 px-4 py-2 text-xs font-black text-slate-500">
@@ -482,7 +482,7 @@ function KnowledgeGraph({
         回到学科中心
       </button>
 
-      <svg viewBox="0 0 780 640" className="relative z-10 h-full min-h-[720px] w-full">
+      <svg viewBox="0 0 900 760" className="relative z-10 h-full min-h-[800px] w-full">
         <defs>
           <filter id="workspace-glow">
             <feDropShadow dx="0" dy="10" stdDeviation="12" floodOpacity="0.16" />
@@ -516,8 +516,8 @@ function KnowledgeGraph({
             item.kind === "dimension" &&
             item.id !== expandedDimensionId &&
             selectedNodeId !== item.id;
-          const width = item.kind === "center" ? 176 : item.kind === "dimension" ? 132 : 116;
-          const height = item.kind === "center" ? 64 : item.kind === "dimension" ? 48 : 40;
+          const width = item.kind === "center" ? 188 : item.kind === "dimension" ? 144 : 128;
+          const height = item.kind === "center" ? 66 : item.kind === "dimension" ? 50 : 42;
 
           return (
             <g
@@ -885,19 +885,19 @@ function layoutWorkspaceNodes(
   const center: PositionedNode = {
     id: discipline.id,
     label: discipline.label,
-    x: 390,
-    y: 320,
+    x: 450,
+    y: 350,
     kind: "center",
     accent: discipline.color,
     summary: discipline.summary,
   };
   const nodes: PositionedNode[] = [center];
-  const radius = 188;
+  const radius = 215;
 
   discipline.dimensions.forEach((dimension, index) => {
     const angle = (-90 + (360 / discipline.dimensions.length) * index) * Math.PI / 180;
-    const x = 390 + Math.cos(angle) * radius;
-    const y = 320 + Math.sin(angle) * radius;
+    const x = center.x + Math.cos(angle) * radius;
+    const y = center.y + Math.sin(angle) * radius;
     nodes.push({
       id: dimension.id,
       label: dimension.label,
@@ -910,15 +910,18 @@ function layoutWorkspaceNodes(
     });
 
     if (expandedDimensionId === dimension.id) {
-      const spread = Math.min(116, 22 * dimension.children.length);
+      const spread = Math.min(170, 34 * dimension.children.length);
+      const childRadius = 168;
       dimension.children.forEach((child, childIndex) => {
         const divisor = Math.max(1, dimension.children.length - 1);
         const childAngle = (-90 + (360 / discipline.dimensions.length) * index - spread / 2 + (spread / divisor) * childIndex) * Math.PI / 180;
+        const childX = Math.min(820, Math.max(80, x + Math.cos(childAngle) * childRadius));
+        const childY = Math.min(690, Math.max(72, y + Math.sin(childAngle) * childRadius));
         nodes.push({
           id: child.id,
           label: child.label,
-          x: x + Math.cos(childAngle) * 112,
-          y: y + Math.sin(childAngle) * 112,
+          x: childX,
+          y: childY,
           kind: "child",
           accent: dimension.accent,
           parentId: dimension.id,

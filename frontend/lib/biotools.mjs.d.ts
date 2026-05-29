@@ -96,6 +96,16 @@ export interface PathwayLearningStep {
   reason: string;
 }
 
+export interface PathwayCandidate {
+  id: string;
+  name: string;
+  species: string;
+  source: "local" | "reactome";
+  description: string;
+  localKey?: string;
+  reactomeUrl?: string;
+}
+
 export const sampleDnaSequence: string;
 export const plasmidExamples: Record<string, PlasmidRecord>;
 export const pathwayCatalog: Record<string, PathwayRecord>;
@@ -156,3 +166,4 @@ export interface ProteinStats {
 export function calculateProteinStats(input: string): ProteinStats;
 export function detectPlasmidInputKind(text: string): "empty" | "genbank" | "fasta" | "raw-sequence" | "unknown";
 export function matchLocalPathway(query: string): string | null;
+export function getCommonPathwayCandidates(query: string): PathwayCandidate[];

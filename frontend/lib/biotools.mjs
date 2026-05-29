@@ -309,6 +309,11 @@ export function buildUniProtKeywordSearchUrl(query) {
   return `${STRUCTURE_BASES.uniProtSearch}?${params.toString()}`;
 }
 
+function isStrictUniProtAccession(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  return /^[OPQ][0-9][A-Z0-9]{3}[0-9]$/.test(raw) || /^[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$/.test(raw);
+}
+
 export function mapUniProtEntryToProteinCandidate(entry) {
   const accession = String(entry?.primaryAccession || entry?.uniProtkbId || "").toUpperCase();
   const name =
@@ -436,7 +441,36 @@ export function searchProteinCandidates(query) {
     ];
   }
 
-  if (/^[A-Za-z][A-Za-z0-9]{4,9}$/.test(raw)) {
+  const q = raw.toLowerCase();
+  const unique = [...new Map([...proteinAliases.values()].map((value) => [value.id, value])).values()];
+  const matches = unique.filter((record) => {
+    const haystack = [
+      record.id,
+      record.label,
+      record.accession,
+      record.pdbId,
+      record.organism,
+      record.teachingFocus,
+    ].join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+
+  if (matches.length > 0) {
+    return matches.map((record) => ({
+      ...record,
+      pdbId: record.pdbId.toUpperCase(),
+      accession: record.accession.toUpperCase(),
+      reviewed: record.reviewed ?? Boolean(record.accession),
+      sourceKind: record.pdbId ? "experimental" : "predicted",
+      sourceLabel: record.pdbId ? "RCSB PDB 实验结构" : "AlphaFold 预测结构",
+      structureUrl: buildRcsbPdbUrl(record.pdbId),
+      alphaFoldUrl: buildAlphaFoldPdbUrl(record.accession),
+      alphaFoldApiUrl: buildAlphaFoldApiUrl(record.accession),
+      matchType: "curated",
+    }));
+  }
+
+  if (isStrictUniProtAccession(raw)) {
     const accession = raw.toUpperCase();
     const curated = [...new Map([...proteinAliases.values()].map((v) => [v.id, v])).values()]
       .find((record) => record.accession.toUpperCase() === accession);
@@ -467,33 +501,7 @@ export function searchProteinCandidates(query) {
     ];
   }
 
-  const q = raw.toLowerCase();
-  const unique = [...new Map([...proteinAliases.values()].map((value) => [value.id, value])).values()];
-  const matches = unique.filter((record) => {
-    const haystack = [
-      record.id,
-      record.label,
-      record.accession,
-      record.pdbId,
-      record.organism,
-      record.teachingFocus,
-    ].join(" ").toLowerCase();
-    return haystack.includes(q);
-  });
-
-  const results = matches;
-  return results.map((record) => ({
-    ...record,
-    pdbId: record.pdbId.toUpperCase(),
-    accession: record.accession.toUpperCase(),
-    reviewed: record.reviewed ?? Boolean(record.accession),
-    sourceKind: record.pdbId ? "experimental" : "predicted",
-    sourceLabel: record.pdbId ? "RCSB PDB 实验结构" : "AlphaFold 预测结构",
-    structureUrl: buildRcsbPdbUrl(record.pdbId),
-    alphaFoldUrl: buildAlphaFoldPdbUrl(record.accession),
-    alphaFoldApiUrl: buildAlphaFoldApiUrl(record.accession),
-    matchType: "curated",
-  }));
+  return [];
 }
 
 function slugForProtein(value) {
@@ -928,6 +936,83 @@ export function detectPlasmidInputKind(text) {
   if (/^\s*>\s*\S/.test(input)) return "fasta";
   if (/^[ATGCNatgcn\s]+$/.test(input)) return "raw-sequence";
   return "unknown";
+}
+
+const commonPathwayCandidates = [
+  {
+    id: "common-pi3k-akt",
+    name: "PI3K-AKT signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：覆盖 PI3K、AKT、mTOR、生长因子受体与细胞存活/代谢调控，适合作为机制解释和 Reactome 深入检索入口。",
+    reactomeUrl: "https://reactome.org/content/query?q=PI3K%20AKT",
+    aliases: ["pi3k", "akt", "pi3k-akt", "pi3k akt", "mtor", "pkb"],
+  },
+  {
+    id: "common-wnt",
+    name: "Wnt signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：围绕 Wnt、Frizzled、β-catenin 与发育/肿瘤相关转录调控展开。",
+    reactomeUrl: "https://reactome.org/content/query?q=Wnt%20signaling",
+    aliases: ["wnt", "beta-catenin", "β-catenin", "ctnnb1"],
+  },
+  {
+    id: "common-notch",
+    name: "Notch signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：围绕 Notch 受体、配体、剪切释放 NICD 和细胞命运决定展开。",
+    reactomeUrl: "https://reactome.org/content/query?q=Notch%20signaling",
+    aliases: ["notch", "nicd", "delta", "jagged"],
+  },
+  {
+    id: "common-tca",
+    name: "TCA / Citric acid cycle",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：连接丙酮酸、乙酰辅酶 A、柠檬酸循环、NADH/FADH2 与能量代谢。",
+    reactomeUrl: "https://reactome.org/content/query?q=Citric%20acid%20cycle",
+    aliases: ["tca", "citric acid", "citric acid cycle", "krebs", "krebs cycle", "三羧酸", "柠檬酸循环"],
+  },
+  {
+    id: "common-jak-stat",
+    name: "JAK-STAT signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：细胞因子受体、JAK 激酶和 STAT 转录因子构成的免疫/炎症信号轴。",
+    reactomeUrl: "https://reactome.org/content/query?q=JAK%20STAT",
+    aliases: ["jak", "stat", "jak-stat", "jak stat"],
+  },
+  {
+    id: "common-tgf-beta",
+    name: "TGF-beta signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：TGF-beta 受体、SMAD 转录调控和发育/纤维化/肿瘤微环境相关机制。",
+    reactomeUrl: "https://reactome.org/content/query?q=TGF-beta%20signaling",
+    aliases: ["tgf", "tgf-beta", "tgfb", "smad"],
+  },
+  {
+    id: "common-nfkb",
+    name: "NF-kB signaling pathway",
+    species: "Homo sapiens",
+    source: "reactome",
+    description: "公共通路候选：炎症、免疫激活和细胞应激中的 NF-kB 转录调控网络。",
+    reactomeUrl: "https://reactome.org/content/query?q=NF-kB%20signaling",
+    aliases: ["nfkb", "nf-kb", "nf kappa b", "nuclear factor kappa"],
+  },
+];
+
+export function getCommonPathwayCandidates(query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+  return commonPathwayCandidates
+    .filter((candidate) => {
+      const text = [candidate.name, candidate.description, ...candidate.aliases].join(" ").toLowerCase();
+      return text.includes(q) || candidate.aliases.some((alias) => alias.includes(q) || q.includes(alias));
+    })
+    .map(({ aliases, ...candidate }) => candidate);
 }
 
 export function matchLocalPathway(query) {

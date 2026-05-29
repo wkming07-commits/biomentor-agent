@@ -13,6 +13,7 @@ import {
   designPrimerPair,
   findOpenReadingFrames,
   findRestrictionSites,
+  getCommonPathwayCandidates,
   getPathwayLearningPath,
   matchLocalPathway,
   parseGenBankFeatures,
@@ -61,6 +62,23 @@ test("returns searchable protein candidates instead of a single hardcoded result
   const accession = searchProteinCandidates("P42212");
   assert.equal(accession[0].sourceKind, "experimental");
   assert.equal(accession[0].accession, "P42212");
+});
+
+test("treats English protein names as searchable keywords instead of fake accessions", () => {
+  const pepsin = searchProteinCandidates("pepsin");
+  assert.equal(pepsin[0].accession, "P00790");
+  assert.equal(pepsin[0].pdbId, "1PSO");
+  assert.equal(pepsin[0].sourceKind, "experimental");
+
+  const pepsinPartial = searchProteinCandidates("pepsi");
+  assert.equal(pepsinPartial[0].accession, "P00790");
+
+  const insulin = searchProteinCandidates("insulin");
+  assert.equal(insulin[0].accession, "P01308");
+  assert.equal(insulin[0].pdbId, "4INS");
+
+  const amylase = searchProteinCandidates("amylase");
+  assert.deepEqual(amylase, []);
 });
 
 test("supports Chinese protein aliases and does not fall back to unrelated demos", () => {
@@ -235,4 +253,16 @@ test("matchLocalPathway maps query strings to local pathway keys", () => {
   assert.equal(matchLocalPathway("MAPK"), "mapk");
   assert.equal(matchLocalPathway("glycolysis"), "glycolysis");
   assert.equal(matchLocalPathway("EGFR"), "mapk");
+});
+
+test("common non-local pathway keywords return public candidate suggestions", () => {
+  const pi3k = getCommonPathwayCandidates("PI3K");
+  assert.ok(pi3k.length >= 1);
+  assert.match(pi3k[0].name, /PI3K|AKT/i);
+
+  const wnt = getCommonPathwayCandidates("wnt");
+  assert.ok(wnt.some((candidate) => /Wnt/i.test(candidate.name)));
+
+  const tca = getCommonPathwayCandidates("TCA");
+  assert.ok(tca.some((candidate) => /Citric acid|TCA/i.test(candidate.name)));
 });
