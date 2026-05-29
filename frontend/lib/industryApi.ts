@@ -16,32 +16,72 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> 
   }
 }
 
-/**
- * 获取所有产业案例
- *
- * TODO: 后期接入真实API
- *  - GET /api/industry/cases
- *  - 返回 IndustryCase[]
- *  - 支持分页、排序、筛选
- */
+export interface ApiIndustryCase {
+  id: number;
+  case_key: string;
+  title: string;
+  subtitle: string;
+  industry_direction: string;
+  background: string;
+  core_problem: string;
+  research_foundation: string;
+  application_value: string;
+  knowledge_points: string[];
+  required_abilities: string[];
+  recommended_keywords: string[];
+  linked_research_task: string;
+  evidence_level: string;
+  source_type: string;
+  application_scenario: string;
+  display_focus: string;
+  migration_path: {
+    textbookBase: string[];
+    researchFrontier: string[];
+    industryApplication: string[];
+  };
+  references: Array<{ title: string; url: string; type: string }>;
+}
+
+function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
+  return {
+    id: apiCase.case_key,
+    title: apiCase.title,
+    subtitle: apiCase.subtitle,
+    relatedKnowledgePoints: apiCase.knowledge_points,
+    industryDirection: apiCase.industry_direction,
+    coreProblem: apiCase.core_problem,
+    researchFoundation: apiCase.research_foundation,
+    applicationValue: apiCase.application_value,
+    requiredAbilities: apiCase.required_abilities,
+    recommendedKeywords: apiCase.recommended_keywords,
+    linkedResearchTask: apiCase.linked_research_task,
+    evidenceLevel: apiCase.evidence_level === "high" ? "高" : apiCase.evidence_level === "medium" ? "中" : "发展中",
+    sourceType: apiCase.source_type === "academic" ? "学术文献" : apiCase.source_type === "clinical_trial" ? "临床试验" : apiCase.source_type === "patent" ? "专利文献" : "产业报告",
+    background: apiCase.background,
+    applicationScenario: apiCase.application_scenario,
+    displayFocus: apiCase.display_focus,
+    migrationPath: apiCase.migration_path,
+    references: apiCase.references.map(r => ({
+      title: r.title,
+      url: r.url,
+      type: r.type as "FDA" | "PubMed" | "DOI" | "NCI" | "Label" | "Review" | "Other",
+    })),
+  };
+}
+
 export async function fetchIndustryCases(): Promise<IndustryCase[]> {
-  // TODO: 替换为真实 API 调用
-  // const data = await apiFetch<IndustryCase[]>("/api/industry/cases");
-  // if (data) return data;
+  const data = await apiFetch<{ items: ApiIndustryCase[] }>("/api/industry/cases");
+  if (data?.items && data.items.length > 0) {
+    return data.items.map(convertApiCaseToFrontend);
+  }
   return mockCases;
 }
 
-/**
- * 搜索产业案例
- *
- * TODO: 后期接入真实API
- *  - GET /api/industry/cases/search?q=xxx
- *  - 支持全文搜索、关键词匹配
- */
 export async function searchIndustryCases(query: string): Promise<IndustryCase[]> {
-  // TODO: 替换为真实 API 调用
-  // const data = await apiFetch<IndustryCase[]>(`/api/industry/cases/search?q=${encodeURIComponent(query)}`);
-  // if (data) return data;
+  const data = await apiFetch<ApiIndustryCase[]>(`/api/industry/cases/search?q=${encodeURIComponent(query)}`);
+  if (data && data.length > 0) {
+    return data.map(convertApiCaseToFrontend);
+  }
   const lower = query.toLowerCase();
   return mockCases.filter(
     (c) =>
@@ -52,17 +92,6 @@ export async function searchIndustryCases(query: string): Promise<IndustryCase[]
   );
 }
 
-/**
- * 获取产业综合问答
- *
- * 优先调用服务端 API Route (POST /api/industry/answer)
- * 如果 API Key 未配置或请求失败，自动 fallback 到本地 mock
- *
- * 后续可升级为 RAG 架构：
- *  - PubMed / NCBI E-utilities：文献检索
- *  - 后端向量数据库（Milvus/Pinecone）：语义检索
- *  - LLM + RAG：生成带来源引用的回答
- */
 export async function getIndustryAnswer(query: string): Promise<IndustryAnswer> {
   try {
     const response = await fetch("/api/industry/answer", {
@@ -73,7 +102,16 @@ export async function getIndustryAnswer(query: string): Promise<IndustryAnswer> 
     if (response.ok) {
       const data = await response.json();
       if (!data.error) {
-        return data as IndustryAnswer;
+        return {
+          query: data.query,
+          answer: data.answer,
+          relatedKnowledgePoints: data.relatedKnowledgePoints || [],
+          researchFrontiers: data.researchFrontiers || [],
+          industryApplications: data.industryApplications || [],
+          abilityDirections: [],
+          recommendedKeywords: data.recommendedKeywords || [],
+          researchTasks: [],
+        };
       }
     }
   } catch {
@@ -82,32 +120,19 @@ export async function getIndustryAnswer(query: string): Promise<IndustryAnswer> 
   return getMockAnswer(query);
 }
 
-/**
- * 获取案例关联的科研实战任务
- *
- * TODO: 后期接入真实API
- *  - GET /api/industry/cases/:id/tasks
- *  - 返回该案例相关的科研任务列表
- *  - 可连接到 /research 模块的实验设计任务
- */
-export async function getRelatedResearchTasks(caseId: string): Promise<string[]> {
-  // TODO: 替换为真实 API 调用
-  // const data = await apiFetch<string[]>(`/api/industry/cases/${caseId}/tasks`);
-  // if (data) return data;
-  const found = mockCases.find((c) => c.id === caseId);
-  return found ? [found.linkedResearchTask] : [];
+export async function getIndustryCaseById(caseId: string): Promise<IndustryCase | null> {
+  const data = await apiFetch<ApiIndustryCase>(`/api/industry/cases/${caseId}`);
+  if (data) {
+    return convertApiCaseToFrontend(data);
+  }
+  return mockCases.find((c) => c.id === caseId) || null;
 }
 
-/**
- * 获取单个案例详情
- *
- * TODO: 后期接入真实API
- *  - GET /api/industry/cases/:id
- *  - 返回完整案例信息，包括扩展文献引用
- */
-export async function getIndustryCaseById(caseId: string): Promise<IndustryCase | null> {
-  // TODO: 替换为真实 API 调用
-  // const data = await apiFetch<IndustryCase>(`/api/industry/cases/${caseId}`);
-  // if (data) return data;
-  return mockCases.find((c) => c.id === caseId) || null;
+export async function getRelatedResearchTasks(caseId: string): Promise<string[]> {
+  const data = await apiFetch<{ tasks: string[] }>(`/api/industry/cases/${caseId}/research-tasks`);
+  if (data?.tasks) {
+    return data.tasks;
+  }
+  const found = mockCases.find((c) => c.id === caseId);
+  return found ? [found.linkedResearchTask] : [];
 }

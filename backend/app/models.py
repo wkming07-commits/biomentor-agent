@@ -96,6 +96,13 @@ class EvidenceLevel(str, enum.Enum):
     developing = "developing"
 
 
+class SourceType(str, enum.Enum):
+    academic = "学术文献"
+    industry_report = "产业报告"
+    patent = "专利文献"
+    clinical_trial = "临床试验"
+
+
 class NodeType(str, enum.Enum):
     concept = "concept"
     paper = "paper"
@@ -304,13 +311,19 @@ class IndustryCase(Base):
     __tablename__ = "industry_cases"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    case_key = Column(String(50), unique=True, nullable=False, index=True)
     title = Column(String(400), nullable=False)
+    subtitle = Column(String(400), default="")
     industry_direction = Column(String(200), default="")
     company = Column(String(200), default="")
     background = Column(Text, default="")
+    core_problem = Column(Text, default="")
     problem_statement = Column(Text, default="")
+    research_foundation = Column(Text, default="")
+    application_value = Column(Text, default="")
     data_description = Column(Text, default="")
     knowledge_points = Column(JSON, default=list)
+    required_abilities = Column(JSON, default=list)
     guide_questions = Column(JSON, default=list)
     references = Column(JSON, default=list)
     evaluation_dimensions = Column(JSON, default=list)
@@ -320,6 +333,11 @@ class IndustryCase(Base):
     related_papers = Column(JSON, default=list)
     related_concepts = Column(JSON, default=list)
     linked_research_task = Column(String(200), default="")
+    evidence_level = Column(Enum(EvidenceLevel), default=EvidenceLevel.medium)
+    source_type = Column(Enum(SourceType), default=SourceType.academic)
+    application_scenario = Column(Text, default="")
+    display_focus = Column(String(500), default="")
+    migration_path = Column(JSON, default=dict)
     is_featured = Column(Boolean, default=False)
     metadata_ = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime, default=_utcnow)

@@ -225,15 +225,21 @@ class ResearchPaperCreate(BaseModel):
 
 class IndustryCaseOut(BaseModel):
     id: int
+    case_key: str
     title: str
+    subtitle: str = ""
     industry_direction: str = ""
     company: str = ""
     background: str = ""
+    core_problem: str = ""
     problem_statement: str = ""
+    research_foundation: str = ""
+    application_value: str = ""
     data_description: str = ""
     knowledge_points: list[str] = []
+    required_abilities: list[str] = []
     guide_questions: list[str] = []
-    references: list[str] = []
+    references: list[dict[str, str]] = []
     evaluation_dimensions: list[str] = []
     analysis_text: str = ""
     difficulty: str = "medium"
@@ -241,19 +247,37 @@ class IndustryCaseOut(BaseModel):
     related_papers: list[str] = []
     related_concepts: list[str] = []
     linked_research_task: str = ""
+    evidence_level: str = "medium"
+    source_type: str = "学术文献"
+    application_scenario: str = ""
+    display_focus: str = ""
+    migration_path: dict[str, list[str]] = {}
     is_featured: bool = False
 
     model_config = {"from_attributes": True}
 
 
 class IndustryCaseCreate(BaseModel):
+    case_key: str
     title: str
+    subtitle: str = ""
     industry_direction: str = ""
     company: str = ""
     background: str = ""
-    problem_statement: str = ""
+    core_problem: str = ""
+    research_foundation: str = ""
+    application_value: str = ""
     knowledge_points: list[str] = []
+    required_abilities: list[str] = []
     guide_questions: list[str] = []
+    recommended_keywords: list[str] = []
+    linked_research_task: str = ""
+    evidence_level: str = "medium"
+    source_type: str = "学术文献"
+    application_scenario: str = ""
+    display_focus: str = ""
+    migration_path: dict[str, list[str]] = {}
+    references: list[dict[str, str]] = []
 
 
 # ---------------------------------------------------------------------------
