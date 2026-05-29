@@ -80,7 +80,7 @@ export default function ExplorePage() {
       if (file.type.startsWith("image")) {
         const reader = new FileReader();
         reader.onload = async (e) => {
-          const img = new window.Image();
+          const img = document.createElement("img");
           img.onload = () => {
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
@@ -261,7 +261,7 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-[calc(var(--nav-height)+2rem)] pb-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
             知识探索中心
@@ -343,7 +343,7 @@ export default function ExplorePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="glass-card rounded-2xl p-6 md:p-8 h-[930px] overflow-hidden flex flex-col">
+            <div className="glass-card rounded-2xl p-6 md:p-8 min-h-[520px] flex flex-col">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-blue-500" />
                 <h2 className="font-semibold text-gray-800">AI知识总结</h2>
