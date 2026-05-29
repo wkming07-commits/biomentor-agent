@@ -136,29 +136,35 @@ export default function KnowledgeMapPage() {
         <div className="absolute right-[10%] top-[18%] h-72 w-72 rounded-full bg-cyan-200/22 blur-3xl" />
         <div className="absolute bottom-[8%] left-[54%] h-60 w-60 rounded-full bg-emerald-200/18 blur-3xl" />
 
-        <GalaxyGraph
-          activeId={activeDisciplineId}
-          compact={Boolean(selectedDisciplineId)}
-          onSelect={openDiscipline}
-        />
+        <div className="pointer-events-none absolute inset-0 z-[1] mx-auto max-w-7xl">
+          <GalaxyGraph
+            activeId={activeDisciplineId}
+            compact={Boolean(selectedDisciplineId)}
+            onSelect={openDiscipline}
+          />
+        </div>
 
         <div className="pointer-events-none relative z-10 mx-auto flex max-w-7xl flex-col gap-8 pt-10 md:pt-16">
-          <div className={`flex items-center ${selectedDisciplineId ? "min-h-[32vh]" : "min-h-[calc(100vh-var(--nav-height)-8rem)]"}`}>
-            <div className="knowledge-reveal max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-[#2563eb] shadow-[inset_0_1px_0_rgba(255,255,255,.8)]">
+          <div className={`flex items-center ${selectedDisciplineId ? "min-h-[30vh]" : "min-h-[calc(100vh-var(--nav-height)-8rem)]"}`}>
+            <div className={`knowledge-reveal ${selectedDisciplineId ? "max-w-[340px]" : "max-w-2xl"}`}>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/55 px-4 py-2 text-xs font-black tracking-[0.16em] text-[#2563eb] shadow-[inset_0_1px_0_rgba(255,255,255,.8)]">
                 <Network className="h-4 w-4" />
                 BioMentor 知识星图
               </div>
-              <h1 className="mt-6 max-w-3xl font-display text-[clamp(42px,7vw,92px)] font-black leading-[0.94] tracking-[-0.07em] text-[#0f172a]">
+              <h1 className={`mt-6 max-w-3xl font-display font-black leading-[0.94] tracking-[-0.05em] text-[#0f172a] ${
+                selectedDisciplineId ? "text-[clamp(30px,3.8vw,48px)]" : "text-[clamp(42px,7vw,92px)]"
+              }`}>
                 生命科学
                 <span className="block bg-gradient-to-r from-[#2563eb] via-[#06b6d4] to-[#10b981] bg-clip-text text-transparent">
                   知识星图
                 </span>
               </h1>
-              <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-                先从 12 个生物学科构成的全局网络进入，再平滑过渡到某个学科的六维知识工作台：
-                生物大类、基础知识、科研前沿、产业应用、代表文献与学习任务。
-              </p>
+              {!selectedDisciplineId && (
+                <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
+                  先从 12 个生物学科构成的全局网络进入，再平滑过渡到某个学科的六维知识工作台：
+                  生物大类、基础知识、科研前沿、产业应用、代表文献与学习任务。
+                </p>
+              )}
               <div className="mt-7 flex flex-wrap gap-3">
                 <button
                   onClick={() => openDiscipline(initialDisciplineId)}
@@ -311,8 +317,10 @@ function GalaxyGraph({
   return (
     <div
       data-testid="knowledge-galaxy"
-      className={`knowledge-reveal pointer-events-none absolute inset-0 z-[1] w-full ${
-        compact ? "min-h-[430px]" : "min-h-screen"
+      className={`knowledge-reveal pointer-events-none absolute z-[1] ${
+        compact
+          ? "left-[35%] right-[1%] top-0 h-[430px] min-h-[430px] max-lg:left-[30%] max-md:left-0 max-md:top-[30%] max-md:h-[54vh]"
+          : "inset-0 min-h-screen w-full"
       }`}
     >
       <div className="absolute right-[2%] top-[8%] h-[68vh] w-[58vw] rounded-full bg-white/20 blur-3xl" />
@@ -353,13 +361,12 @@ function GalaxyGraph({
         })}
       </svg>
       <div
-        className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/70 shadow-[0_18px_58px_rgba(37,99,235,.16)] backdrop-blur-xl"
-        style={{ left: `${compact ? 50 : 58}%`, top: `${compact ? 50 : 52}%` }}
+        className={`${compact ? "h-24 w-24" : "h-32 w-32"} absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-white/70 shadow-[0_18px_58px_rgba(37,99,235,.16)] backdrop-blur-xl`}
+        style={{ left: `${compact ? 55 : 60}%`, top: `${compact ? 50 : 52}%` }}
       >
         <div className="flex h-full flex-col items-center justify-center text-center">
           <Sparkles className="mb-1 h-5 w-5 text-[#2563eb]" />
           <span className="text-xs font-black text-slate-800">BioMentor</span>
-          <span className="text-[10px] font-bold text-slate-400">知识核心</span>
         </div>
       </div>
       {knowledgeDisciplines.map((discipline) => {
@@ -373,13 +380,13 @@ function GalaxyGraph({
             onClick={() => onSelect(discipline.id)}
             onMouseEnter={() => setHoveredId(discipline.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`knowledge-galaxy-node pointer-events-auto group absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border px-4 py-3 text-left shadow-[0_14px_42px_rgba(67,106,160,.15)] backdrop-blur-2xl transition-all duration-300 hover:z-20 hover:-translate-y-[calc(50%+4px)] ${
+            className={`knowledge-galaxy-node pointer-events-auto group absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border text-left shadow-[0_14px_42px_rgba(67,106,160,.15)] backdrop-blur-2xl transition-all duration-300 hover:z-20 hover:-translate-y-[calc(50%+4px)] ${
               active
                 ? "border-white bg-[#111827] text-white"
                 : related
                   ? "border-white/90 bg-white/72 text-slate-700 hover:bg-white"
                   : "border-white/70 bg-white/42 text-slate-500 hover:bg-white"
-            }`}
+            } ${compact ? "px-3 py-2" : "px-4 py-2.5"}`}
             style={{
               left: `${point.x}%`,
               top: `${point.y}%`,
@@ -394,9 +401,8 @@ function GalaxyGraph({
               style={{ background: discipline.color, boxShadow: `0 0 18px ${discipline.color}` }}
             />
             <span>
-              <span className="block text-xs font-black md:text-sm">{discipline.label}</span>
-              <span className={`block text-[10px] font-bold ${active ? "text-white/55" : "text-slate-400"}`}>
-                {discipline.group}
+              <span className={`${compact ? "text-[11px] md:text-xs" : "text-xs md:text-sm"} block font-black`}>
+                {discipline.label}
               </span>
             </span>
           </button>
@@ -410,7 +416,23 @@ function galaxyPoint(
   discipline: Pick<KnowledgeDiscipline, "id" | "x" | "y">,
   compact: boolean,
 ): { x: number; y: number } {
-  if (compact) return { x: discipline.x, y: discipline.y };
+  if (compact) {
+    const compactPositions: Record<string, { x: number; y: number }> = {
+      neuroscience: { x: 45, y: 20 },
+      "cell-biology": { x: 61, y: 18 },
+      "developmental-biology": { x: 77, y: 25 },
+      microbiology: { x: 33, y: 35 },
+      "molecular-biology": { x: 51, y: 38 },
+      "structural-biology": { x: 70, y: 43 },
+      immunology: { x: 31, y: 57 },
+      genomics: { x: 49, y: 61 },
+      "ecology-evolution": { x: 79, y: 58 },
+      "synthetic-biology": { x: 39, y: 80 },
+      bioinformatics: { x: 58, y: 79 },
+      biochemistry: { x: 74, y: 75 },
+    };
+    return compactPositions[discipline.id] || { x: 56, y: 50 };
+  }
   const offsets: Record<string, { x: number; y: number }> = {
     "structural-biology": { x: 3, y: -4 },
     "ecology-evolution": { x: 3, y: 6 },
