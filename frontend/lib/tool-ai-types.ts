@@ -22,6 +22,7 @@ export interface ToolAiRequest {
   tool: BioToolName;
   mode: ToolAiMode;
   question?: string;
+  history?: ToolChatMessage[];
   context: ToolContextSummary;
 }
 
@@ -29,4 +30,5 @@ export interface ToolAiResponse {
   answer: string;
   quickQuestions: string[];
   disclaimer: string;
+  source?: "deepseek" | "local_fallback";
 }

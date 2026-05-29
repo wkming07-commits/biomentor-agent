@@ -37,6 +37,12 @@ function buildUserPrompt(request: ToolAiRequest): string {
   const { mode, question, context } = request;
   const facts = context.facts.map((f) => `${f.label}: ${f.value}`).join("\n");
   const highlights = context.highlights.join("\n");
+  const history = Array.isArray(request.history)
+    ? request.history
+        .slice(-8)
+        .map((message) => `${message.role === "user" ? "学生" : "助手"}: ${message.content}`)
+        .join("\n")
+    : "";
 
   if (mode === "initial") {
     return `当前工具上下文：
@@ -67,8 +73,9 @@ ${highlights || "(暂无)"}
 ${context.warnings?.length ? `\n注意事项:\n${context.warnings.join("\n")}` : ""}
 
 学生追问：${question}
+${history ? `\n最近对话:\n${history}` : ""}
 
-请回答学生的问题，尽量结合当前上下文中的事实和教学要点。如果问题超出当前上下文范围，请诚实说明你可以基于什么范围回答。`;
+请先直接回答学生追问，不要重复初始讲解模板；然后再结合当前上下文中的事实和教学要点补充解释。如果问题超出当前上下文范围，请诚实说明你可以基于什么范围回答。`;
 }
 
 export async function POST(request: NextRequest) {
@@ -135,7 +142,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(createHelpfulToolFallback(tool, body));
       }
 
-      const result: ToolAiResponse = normalizeToolAiResponse(content, tool, body);
+      const result = normalizeToolAiResponse(content, tool, body) as ToolAiResponse;
 
       return NextResponse.json(result);
     } catch (fetchError) {

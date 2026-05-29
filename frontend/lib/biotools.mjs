@@ -454,11 +454,14 @@ export function searchProteinCandidates(query) {
       {
         ...base,
         accession,
-        source: curated ? "AlphaFold DB + RCSB PDB" : "预测结构",
-        sourceKind: "predicted",
-        structureUrl: buildAlphaFoldPdbUrl(accession),
+        pdbId: curated?.pdbId ? curated.pdbId.toUpperCase() : base.pdbId,
+        source: curated ? "UniProtKB/Swiss-Prot + RCSB PDB" : "预测结构",
+        sourceKind: curated?.pdbId ? "experimental" : "predicted",
+        sourceLabel: curated?.pdbId ? "RCSB PDB 实验结构" : "AlphaFold 预测结构",
+        structureUrl: curated?.pdbId ? buildRcsbPdbUrl(curated.pdbId) : buildAlphaFoldPdbUrl(accession),
         alphaFoldUrl: buildAlphaFoldPdbUrl(accession),
         alphaFoldApiUrl: buildAlphaFoldApiUrl(accession),
+        rcsbUrl: curated?.pdbId ? `https://www.rcsb.org/structure/${curated.pdbId.toUpperCase()}` : "",
         matchType: curated ? "curated" : "uniprot",
       },
     ];

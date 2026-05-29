@@ -1,361 +1,578 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  MessageSquare,
-  Presentation,
-  Users,
   Award,
-  Send,
-  ChevronDown,
-  Bot,
-  User,
-  Mic,
-  Quote,
   BookOpen,
+  BrainCircuit,
+  CheckCircle2,
+  FileUp,
+  Loader2,
+  MessageSquare,
+  PenLine,
+  Send,
+  Sparkles,
+  Upload,
+  Users,
 } from "lucide-react";
 
-const defenseTopics = [
-  "CRISPR基因编辑的分子机制",
-  "CAR-T细胞的信号转导",
-  "代谢工程中的限速酶调控",
-  "合成生物学元件标准化",
-  "蛋白质工程定向进化策略",
-];
+import type { DefenseBrief, DefenseTranscriptItem } from "@/lib/defense-flow";
 
-const mockDefenseTranscript = [
-  {
-    role: "导师",
-    speaker: "AI课程导师",
-    message: "同学，请你先简要说明CRISPR-Cas9系统中Cas9蛋白的核酸酶结构域及其催化功能。",
-    type: "mentor",
-  },
-  {
-    role: "学生",
-    speaker: "你",
-    message: "Cas9蛋白包含两个核酸酶结构域：HNH结构域负责切割与crRNA互补的DNA链，RuvC-like结构域切割非互补链，两者协同作用产生双链断裂（DSB）。",
-    type: "student",
-  },
-  {
-    role: "导师",
-    speaker: "AI科研导师",
-    message: "很好。那么请问，当PAM序列缺失时，Cas9的构象会发生什么变化？这对基因编辑效率有何影响？",
-    type: "mentor",
-  },
-  {
-    role: "学生",
-    speaker: "你",
-    message: "PAM识别会触发Cas9的构象重排，使HNH结构域从非活性状态转变为活性状态。缺乏PAM时Cas9无法完成这一构象变化，因此无法切割目标DNA，这是CRISPR系统的一种天然安全机制。",
-    type: "student",
-  },
-  {
-    role: "导师",
-    speaker: "AI产业导师",
-    message: "在实际产业应用中，你如何评价CRISPR技术在农业育种与人类基因治疗两个方向的挑战差异？",
-    type: "mentor",
-  },
-  {
-    role: "学生",
-    speaker: "你",
-    message: "农业育种主要面临多基因性状编辑效率和脱靶效应的平衡问题，以及转基因监管框架的不确定性；而人类基因治疗更关注递送系统的安全性、免疫原性反应和长期伦理评估。两者都依赖精准编辑技术的发展。",
-    type: "student",
-  },
-];
+type Difficulty = "basic" | "standard" | "challenge";
+type Stage = "source" | "brief" | "defense" | "report";
 
-const mockConferenceTranscript = [
-  {
-    role: "Chair",
-    speaker: "会议主席",
-    message: "欢迎各位参加今天的学术研讨会。我们讨论的主题是'基因编辑技术的前沿进展'。请第一位报告人开始。",
-  },
-  {
-    role: "Reviewer",
-    speaker: "审稿人A",
-    message: "我注意到您在实验中使用的是SpCas9变体，请问为何未选择更高保真度的eSpCas9或HypaCas9？",
-  },
-  {
-    role: "Presenter",
-    speaker: "报告人（你）",
-    message: "我们前期工作发现SpCas9在该细胞系中的编辑效率已达到82%且脱靶率低于0.5%，满足研究需求。但我们也计划在后续实验中对比高保真变体的性能。",
-    isSelf: true,
-  },
-  {
-    role: "Audience",
-    speaker: "听众B",
-    message: "关于sgRNA的设计策略，你们是否考虑过使用化学修饰来增强稳定性？",
-  },
-  {
-    role: "Presenter",
-    speaker: "报告人（你）",
-    message: "是的，我们尝试了2\'-O-甲基和硫代磷酸酯修饰，发现3\'端修饰可将体内半衰期延长约3倍，显著提升了编辑窗口期。",
-    isSelf: true,
-  },
-  {
-    role: "Chair",
-    speaker: "会议主席",
-    message: "感谢精彩的报告和讨论。这个工作为精准基因编辑的应用提供了有价值的数据支持。",
-  },
-];
+interface DefenseQuestion {
+  committeeRole: string;
+  question: string;
+  intent?: string;
+}
 
-const roleIcons: Record<string, string> = {
-  Chair: "#06b6d4",
-  Reviewer: "#f59e0b",
-  Presenter: "#2563eb",
-  Audience: "#f43f5e",
-};
+interface DefenseReport {
+  totalScore: number;
+  dimensions: Array<{ label: string; score: number; comment: string }>;
+  committeeFeedback: string;
+  weakPoints: string[];
+  moduleRecommendations: Array<{ label: string; href: string; reason: string }>;
+  nextDefenseTopics: string[];
+}
+
+const seedText = `题目：基于 CRISPR-Cas9 的胃癌相关基因调控研究
+背景：胃癌发生与 TP53、EGFR 和细胞周期调控异常有关。
+科学问题：如何利用 CRISPR-Cas9 验证候选基因对胃癌细胞增殖的影响？
+方法：设计 sgRNA，构建表达载体，进行细胞转染、测序验证和增殖实验。
+创新点：把基因编辑与通路图谱结合，形成可解释的机制链。`;
 
 export default function SeminarPage() {
-  const [selectedTopic, setSelectedTopic] = useState(defenseTopics[0]);
-  const [showTopicDropdown, setShowTopicDropdown] = useState(false);
+  const [stage, setStage] = useState<Stage>("source");
+  const [sourceText, setSourceText] = useState(seedText);
+  const [sourceLabel, setSourceLabel] = useState("手动粘贴");
+  const [brief, setBrief] = useState<DefenseBrief | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("standard");
+  const [turnLimit, setTurnLimit] = useState<3 | 5 | 8>(5);
+  const [turnIndex, setTurnIndex] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState<DefenseQuestion | null>(null);
+  const [answer, setAnswer] = useState("");
+  const [transcript, setTranscript] = useState<DefenseTranscriptItem[]>([]);
+  const [report, setReport] = useState<DefenseReport | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusText, setStatusText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const canStartDefense = Boolean(brief?.title && brief?.researchQuestion && brief?.methods.length);
+  const progress = stage === "source" ? 1 : stage === "brief" ? 2 : stage === "defense" ? 3 : 4;
+
+  const modeLabel = brief?.mode === "paper_defense" ? "论文答辩" : "开题答辩";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const topic = params.get("topic");
+    const source = params.get("source");
+    const summary = params.get("summary");
+    if (!topic && !summary) return;
+    const label = source ? `站内导入：${source}` : "站内导入";
+    setSourceLabel(label);
+    setSourceText(
+      [
+        `题目：${topic || "站内模块导入主题"}`,
+        `来源：${label}`,
+        summary ? `背景：${summary}` : "背景：该主题来自 BioMentor Agent 站内模块，可围绕概念理解、工具结果、研究问题和应用价值展开答辩。",
+        "科学问题：如何把该主题转化为清晰、可验证、可表达的科研问题？",
+        "方法：结合知识图谱、生物工具箱和文献证据，组织机制解释、验证路线和局限性说明。",
+      ].join("\n"),
+    );
+  }, []);
+
+  async function createBriefFromText() {
+    setIsLoading(true);
+    setStatusText("正在凝练答辩资料包");
+    try {
+      const res = await fetch("/api/ai/defense/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceType: "manual", sourceLabel, text: sourceText }),
+      });
+      const result = await res.json();
+      if (!result?.data) throw new Error("empty brief");
+      setBrief(result.data);
+      setStage("brief");
+    } catch {
+      setStatusText("资料包生成失败，请补充文本后重试。");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsLoading(true);
+    setStatusText("正在读取文件并生成资料包");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("sourceType", "file");
+      form.append("sourceLabel", file.name);
+      const res = await fetch("/api/ai/defense/brief", { method: "POST", body: form });
+      const result = await res.json();
+      if (!result?.data) throw new Error("empty brief");
+      setSourceLabel(file.name);
+      setBrief(result.data);
+      setStage("brief");
+    } catch {
+      setStatusText("文件解析失败。建议先导出为 PDF、DOCX、PPTX 或粘贴正文。");
+    } finally {
+      setIsLoading(false);
+      event.target.value = "";
+    }
+  }
+
+  async function startDefense() {
+    if (!brief) return;
+    setStage("defense");
+    setTranscript([]);
+    setTurnIndex(0);
+    setReport(null);
+    await fetchNextQuestion([], 0);
+  }
+
+  async function fetchNextQuestion(nextTranscript: DefenseTranscriptItem[], nextTurn: number) {
+    if (!brief) return;
+    setIsLoading(true);
+    setStatusText("答辩委员会正在生成下一问");
+    try {
+      const res = await fetch("/api/ai/defense/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief, difficulty, turnLimit, turnIndex: nextTurn, transcript: nextTranscript }),
+      });
+      const result = await res.json();
+      if (!result?.data) throw new Error("empty question");
+      setCurrentQuestion(result.data);
+      setTranscript([
+        ...nextTranscript,
+        {
+          role: "committee",
+          committeeRole: result.data.committeeRole,
+          content: result.data.question,
+        },
+      ]);
+    } catch {
+      setStatusText("下一问生成失败，请稍后重试。");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function submitAnswer() {
+    if (!brief || !answer.trim() || !currentQuestion) return;
+    const studentMessage: DefenseTranscriptItem = { role: "student", content: answer.trim() };
+    const nextTranscript = [...transcript, studentMessage];
+    setTranscript(nextTranscript);
+    setAnswer("");
+
+    const answeredTurns = turnIndex + 1;
+    setTurnIndex(answeredTurns);
+    if (answeredTurns >= turnLimit) {
+      await finishReport(nextTranscript);
+      return;
+    }
+    await fetchNextQuestion(nextTranscript, answeredTurns);
+  }
+
+  async function finishReport(finalTranscript = transcript) {
+    if (!brief) return;
+    setIsLoading(true);
+    setStatusText("正在生成闭环答辩报告");
+    try {
+      const res = await fetch("/api/ai/defense/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief, difficulty, turnLimit, transcript: finalTranscript }),
+      });
+      const result = await res.json();
+      if (!result?.data) throw new Error("empty report");
+      setReport(result.data);
+      setStage("report");
+    } catch {
+      setStatusText("报告生成失败，请稍后重试。");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const briefSections = useMemo(
+    () =>
+      brief
+        ? [
+            { key: "background", label: "研究背景" },
+            { key: "researchQuestion", label: "科学问题" },
+            { key: "hypothesis", label: "研究假设" },
+            { key: "applicationValue", label: "应用价值" },
+          ] as const
+        : [],
+    [brief],
+  );
 
   return (
-    <div className="min-h-screen pt-[var(--nav-height)]">
-      <section className="px-6 md:px-10 py-10 md:py-14 max-w-7xl mx-auto">
-        <div className="mb-10">
-          <p className="section-title">学术研讨</p>
-          <h1 className="section-heading text-[clamp(32px,5vw,48px)]">
-            模拟学术答辩
-          </h1>
-          <p className="text-[#4a4a6a] mt-3 max-w-2xl leading-relaxed">
-            在多角色AI导师的引导下进行学术答辩模拟训练，提升科研表达与学术交流能力
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Mock Defense */}
-          <div className="glass-card-iridescent p-6 md:p-8 flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-[#eff6ff] border border-[#dbeafe] flex items-center justify-center">
-                <Presentation className="w-5 h-5 text-[#2563eb]" />
+    <div className="min-h-screen pt-[var(--nav-height)] font-body text-[#111827]">
+      <section className="relative overflow-hidden px-5 py-8 md:px-10 md:py-12">
+        <div className="absolute inset-0 liquid-hero-bg" />
+        <div className="bio-network opacity-50" />
+        <div className="relative z-10 mx-auto max-w-[1500px]">
+          <header className="mb-6 grid gap-6 lg:grid-cols-[1fr_420px] lg:items-end">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/60 px-4 py-2 text-xs font-black text-[#2563eb] shadow-sm">
+                <Users className="h-4 w-4" />
+                科研答辩工作台
               </div>
-              <div>
-                <h2 className="font-display text-lg font-bold text-[#0d0d1a]">
-                  模拟学术答辩
-                </h2>
-                <p className="text-xs text-[#4a4a6a]">AI导师扮演答辩委员会进行提问</p>
+              <h1 className="mt-5 font-display text-[clamp(36px,6vw,72px)] font-black leading-none tracking-[-0.06em]">
+                模拟学术答辩
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                导入开题材料、论文摘要或站内工具结果，先生成可编辑的 Defense Brief，再进入多角色文字答辩，最后输出闭环训练报告。
+              </p>
+            </div>
+            <div className="rounded-[28px] border border-white/80 bg-white/58 p-4 shadow-[0_18px_55px_rgba(67,106,160,.12)] backdrop-blur-2xl">
+              <div className="mb-3 flex items-center justify-between text-xs font-black text-slate-500">
+                <span>训练进度</span>
+                <span>{progress}/4</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {["资料", "Brief", "答辩", "报告"].map((item, index) => (
+                  <div key={item} className="space-y-2">
+                    <div className={`h-2 rounded-full ${index < progress ? "bg-[#2563eb]" : "bg-slate-200"}`} />
+                    <div className={index < progress ? "text-xs font-black text-[#2563eb]" : "text-xs font-bold text-slate-400"}>
+                      {item}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          </header>
 
-            <div className="relative mb-5">
-              <label className="block text-xs font-semibold text-[#4a4a6a] mb-2">
-                选择答辩课题
-              </label>
-              <button
-                onClick={() => setShowTopicDropdown(!showTopicDropdown)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-white/60 border border-white/60 text-sm text-[#0d0d1a] hover:border-[#2563eb]/20 transition-colors"
-              >
-                <span className="truncate">{selectedTopic}</span>
-                <ChevronDown
-                  className={`w-4 h-4 text-[#4a4a6a] transition-transform ${
-                    showTopicDropdown ? "rotate-180" : ""
-                  }`}
+          {statusText && (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/70 px-4 py-2 text-xs font-bold text-slate-500">
+              {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {statusText}
+            </div>
+          )}
+
+          {stage === "source" && (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <main className="rounded-[32px] border border-white/85 bg-white/58 p-5 shadow-[0_24px_72px_rgba(67,106,160,.13)] backdrop-blur-2xl md:p-7">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#111827] text-white">
+                    <PenLine className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-display text-xl font-black">导入答辩材料</h2>
+                    <p className="text-sm text-slate-500">支持粘贴文本，也支持 PDF / DOCX / PPT / PPTX 上传。</p>
+                  </div>
+                </div>
+                <textarea
+                  value={sourceText}
+                  onChange={(event) => setSourceText(event.target.value)}
+                  className="h-[420px] w-full resize-none rounded-[24px] border border-white/85 bg-white/70 p-5 text-sm leading-7 text-slate-700 outline-none transition focus:border-blue-200 focus:ring-4 focus:ring-blue-100/70"
+                  placeholder="粘贴论文摘要、开题报告、实验方案或课程任务要求..."
                 />
-              </button>
-              {showTopicDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white/95 backdrop-blur-xl border border-white/60 rounded-xl shadow-lg z-10 overflow-hidden">
-                  {defenseTopics.map((topic) => (
-                    <button
-                      key={topic}
-                      onClick={() => {
-                        setSelectedTopic(topic);
-                        setShowTopicDropdown(false);
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                        selectedTopic === topic
-                          ? "bg-[#eff6ff] text-[#2563eb] font-medium"
-                          : "text-[#4a4a6a] hover:bg-white/60"
-                      }`}
-                    >
-                      {topic}
-                    </button>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    onClick={createBriefFromText}
+                    disabled={isLoading || !sourceText.trim()}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    生成 Defense Brief
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.ppt,.pptx,.txt,.md"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/85 bg-white/70 px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-white disabled:opacity-45"
+                  >
+                    <Upload className="h-4 w-4" />
+                    上传文件
+                  </button>
+                </div>
+              </main>
+              <aside className="space-y-4">
+                {[
+                  ["站内模块导入", "知识图谱、科研实战、产业案例和四个工具都可以作为答辩主题来源。"],
+                  ["AI 凝练资料包", "把长材料整理成标题、背景、科学问题、假设、方法、证据和局限性。"],
+                  ["闭环训练报告", "答辩中不显示逐轮评分，结束后统一输出六维评分与下一轮建议。"],
+                ].map(([title, desc]) => (
+                  <div key={title} className="rounded-[28px] border border-white/80 bg-white/58 p-5 shadow-[0_14px_44px_rgba(67,106,160,.1)] backdrop-blur-2xl">
+                    <div className="mb-2 font-display text-base font-black">{title}</div>
+                    <p className="text-sm leading-7 text-slate-500">{desc}</p>
+                  </div>
+                ))}
+              </aside>
+            </div>
+          )}
+
+          {stage === "brief" && brief && (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+              <main className="rounded-[32px] border border-white/85 bg-white/60 p-5 shadow-[0_24px_72px_rgba(67,106,160,.13)] backdrop-blur-2xl md:p-7">
+                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1 pr-0 lg:pr-4">
+                    <div className="mb-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#2563eb]">{modeLabel}</div>
+                    <textarea
+                      value={brief.title}
+                      onChange={(event) => setBrief({ ...brief, title: event.target.value })}
+                      rows={2}
+                      className="block min-h-[92px] w-full resize-none bg-transparent font-display text-3xl font-black leading-tight tracking-[-0.04em] text-[#111827] outline-none md:text-4xl"
+                    />
+                  </div>
+                  <button
+                    onClick={startDefense}
+                    disabled={!canStartDefense || isLoading}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#111827] px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(17,24,39,.16)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    确认并开始答辩
+                  </button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {briefSections.map((section) => (
+                    <label key={section.key} className="block rounded-[24px] border border-white/80 bg-white/60 p-4">
+                      <span className="text-xs font-black text-slate-400">{section.label}</span>
+                      <textarea
+                        value={String(brief[section.key] || "")}
+                        onChange={(event) => setBrief({ ...brief, [section.key]: event.target.value })}
+                        className="mt-2 h-28 w-full resize-none bg-transparent text-sm leading-6 text-slate-700 outline-none"
+                      />
+                    </label>
                   ))}
                 </div>
-              )}
-            </div>
-
-            <button className="w-full mb-6 px-5 py-3 rounded-xl bg-[#0d0d1a] text-white text-sm font-semibold hover:bg-[#1a1a2e] transition-all flex items-center justify-center gap-2">
-              <Mic className="w-4 h-4" />
-              开始模拟答辩
-            </button>
-
-            <div className="flex-1 bg-white/40 rounded-2xl border border-white/60 p-4 space-y-4 max-h-[480px] overflow-y-auto">
-              <p className="text-xs font-semibold text-[#4a4a6a] flex items-center gap-2 mb-3">
-                <MessageSquare className="w-3.5 h-3.5 text-[#2563eb]" />
-                答辩记录演示
-              </p>
-              {mockDefenseTranscript.map((item, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-3 ${
-                    item.type === "student" ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      item.type === "student"
-                        ? "bg-[#eff6ff]"
-                        : "bg-[#f3f4f6]"
-                    }`}
-                  >
-                    {item.type === "student" ? (
-                      <User className="w-4 h-4 text-[#2563eb]" />
-                    ) : (
-                      <Bot className="w-4 h-4 text-[#4a4a6a]" />
-                    )}
-                  </div>
-                  <div
-                    className={`flex-1 px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      item.type === "student"
-                        ? "bg-[#2563eb] text-white rounded-tr-md"
-                        : "bg-white/80 rounded-tl-md"
-                    }`}
-                  >
-                    <p
-                      className={`text-[10px] font-semibold mb-1 ${
-                        item.type === "student"
-                          ? "text-white/70"
-                          : "text-[#4a4a6a]"
-                      }`}
-                    >
-                      {item.speaker}
-                    </p>
-                    <p className={item.type === "student" ? "text-white" : "text-[#0d0d1a]"}>
-                      {item.message}
-                    </p>
+                <EditableList title="研究目标" items={brief.objectives} onChange={(items) => setBrief({ ...brief, objectives: items })} />
+                <EditableList title="方法路线" items={brief.methods} onChange={(items) => setBrief({ ...brief, methods: items })} />
+                <EditableList title="证据与局限" items={[...brief.evidence, ...brief.limitations]} onChange={(items) => setBrief({ ...brief, evidence: items.slice(0, Math.ceil(items.length / 2)), limitations: items.slice(Math.ceil(items.length / 2)) })} />
+              </main>
+              <aside className="h-fit rounded-[30px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_70px_rgba(67,106,160,.13)] backdrop-blur-2xl transition-all duration-500 ease-out xl:sticky xl:top-24">
+                <h3 className="font-display text-lg font-black">答辩设置</h3>
+                <div className="mt-4 space-y-4">
+                  <OptionGroup
+                    label="难度"
+                    value={difficulty}
+                    options={[
+                      ["basic", "基础"],
+                      ["standard", "标准"],
+                      ["challenge", "挑战"],
+                    ]}
+                    onChange={(value) => setDifficulty(value as Difficulty)}
+                  />
+                  <OptionGroup
+                    label="轮数"
+                    value={String(turnLimit)}
+                    options={[
+                      ["3", "3 轮"],
+                      ["5", "5 轮"],
+                      ["8", "8 轮"],
+                    ]}
+                    onChange={(value) => setTurnLimit(Number(value) as 3 | 5 | 8)}
+                  />
+                  <div className="rounded-2xl bg-slate-50/80 p-4 text-sm leading-7 text-slate-500">
+                    答辩过程中只显示评委问题和你的回答，不展示逐轮评分；评分和缺失点会在最终报告里统一呈现。
                   </div>
                 </div>
-              ))}
+              </aside>
             </div>
-          </div>
+          )}
 
-          {/* Right: Conference Simulation */}
-          <div className="glass-card p-6 md:p-8 flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-[#ecfeff] border border-[#cffafe] flex items-center justify-center">
-                <Users className="w-5 h-5 text-[#06b6d4]" />
-              </div>
-              <div>
-                <h2 className="font-display text-lg font-bold text-[#0d0d1a]">
-                  学术会议模拟
-                </h2>
-                <p className="text-xs text-[#4a4a6a]">AI扮演不同角色模拟真实学术会议</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-[#4a4a6a] mb-4 flex items-center gap-2">
-              <Quote className="w-3.5 h-3.5 text-[#06b6d4]" />
-              主题：基因编辑技术的前沿进展
-            </p>
-
-            <div className="flex-1 bg-white/40 rounded-2xl border border-white/60 p-4 space-y-4 max-h-[480px] overflow-y-auto">
-              {mockConferenceTranscript.map((item, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-3 ${
-                    item.isSelf ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
-                    style={{
-                      backgroundColor: roleIcons[item.role] || "#6b7280",
-                    }}
-                  >
-                    {item.role === "Chair"
-                      ? "C"
-                      : item.role === "Reviewer"
-                      ? "R"
-                      : item.role === "Presenter"
-                      ? "P"
-                      : "A"}
-                  </div>
-                  <div
-                    className={`flex-1 px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      item.isSelf
-                        ? "bg-[#06b6d4] text-white rounded-tr-md"
-                        : "bg-white/80 rounded-tl-md"
-                    }`}
-                  >
-                    <p
-                      className={`text-[10px] font-semibold mb-1 ${
-                        item.isSelf ? "text-white/70" : "text-[#4a4a6a]"
-                      }`}
-                    >
-                      {item.speaker}
-                      <span
-                        className="ml-2 px-1.5 py-0.5 rounded-full text-[9px]"
-                        style={{
-                          color: roleIcons[item.role],
-                          backgroundColor: `${roleIcons[item.role]}15`,
-                        }}
-                      >
-                        {item.role}
-                      </span>
-                    </p>
-                    <p className={item.isSelf ? "text-white" : "text-[#0d0d1a]"}>
-                      {item.message}
-                    </p>
-                  </div>
+          {stage === "defense" && brief && (
+            <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+              <aside className="h-fit rounded-[30px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_70px_rgba(67,106,160,.13)] backdrop-blur-2xl xl:sticky xl:top-24">
+                <div className="text-xs font-black text-slate-400">Defense Brief</div>
+                <h2 className="mt-2 font-display text-xl font-black">{brief.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-500">{brief.researchQuestion}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {brief.keywords.map((keyword) => (
+                    <span key={keyword} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#2563eb]">{keyword}</span>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </aside>
 
-            <div className="mt-4 flex gap-2">
-              <input
-                type="text"
-                placeholder="输入你的发言..."
-                className="flex-1 px-4 py-2.5 rounded-xl bg-white/60 border border-white/60 text-sm text-[#0d0d1a] placeholder:text-[#8e8eaa] focus:outline-none focus:border-[#06b6d4]/30"
-              />
-              <button className="px-4 py-2.5 rounded-xl bg-[#06b6d4] text-white hover:bg-[#0891b2] transition-colors">
-                <Send className="w-4 h-4" />
-              </button>
+              <main className="flex min-h-[680px] flex-col rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_24px_72px_rgba(67,106,160,.13)] backdrop-blur-2xl">
+                <div className="mb-4 flex items-center justify-between border-b border-slate-200/60 pb-4">
+                  <div>
+                    <div className="text-xs font-black text-slate-400">第 {Math.min(turnIndex + 1, turnLimit)} / {turnLimit} 轮</div>
+                    <h2 className="font-display text-xl font-black">答辩室</h2>
+                  </div>
+                  <button onClick={() => finishReport()} className="rounded-2xl border border-white/80 bg-white/70 px-4 py-2 text-xs font-black text-slate-600 hover:bg-white">
+                    提前生成报告
+                  </button>
+                </div>
+                <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+                  {transcript.map((item, index) => (
+                    <div key={`${item.role}-${index}`} className={`flex gap-3 ${item.role === "student" ? "flex-row-reverse" : ""}`}>
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${item.role === "student" ? "bg-[#2563eb] text-white" : "bg-[#111827] text-white"}`}>
+                        {item.role === "student" ? <PenLine className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                      </div>
+                      <div className={`max-w-[82%] rounded-3xl px-4 py-3 text-sm leading-7 ${item.role === "student" ? "rounded-tr-sm bg-[#2563eb] text-white" : "rounded-tl-sm bg-white/85 text-slate-700"}`}>
+                        {item.committeeRole && <div className="mb-1 text-xs font-black text-slate-400">{item.committeeRole}</div>}
+                        {item.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isLoading && <LoadingBubble text="正在等待评委追问" />}
+                </div>
+                <div className="mt-4 flex gap-2 border-t border-slate-200/60 pt-4">
+                  <textarea
+                    value={answer}
+                    onChange={(event) => setAnswer(event.target.value)}
+                    placeholder="输入你的答辩回答..."
+                    className="h-20 min-w-0 flex-1 resize-none rounded-2xl border border-white/85 bg-white/80 px-4 py-3 text-sm leading-6 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100/70"
+                  />
+                  <button
+                    onClick={submitAnswer}
+                    disabled={isLoading || !answer.trim()}
+                    className="flex w-14 items-center justify-center rounded-2xl bg-[#111827] text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </main>
+
+              <aside className="h-fit rounded-[30px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_70px_rgba(67,106,160,.13)] backdrop-blur-2xl xl:sticky xl:top-24">
+                <h3 className="font-display text-lg font-black">委员会视角</h3>
+                <div className="mt-4 space-y-3">
+                  {["机制委员", "方法委员", "证据委员", "应用委员"].map((role) => (
+                    <div key={role} className="rounded-2xl bg-white/60 p-3 text-sm font-bold text-slate-600">{role}</div>
+                  ))}
+                </div>
+              </aside>
             </div>
-          </div>
+          )}
+
+          {stage === "report" && report && (
+            <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+              <aside className="rounded-[32px] border border-white/85 bg-white/62 p-6 text-center shadow-[0_24px_72px_rgba(67,106,160,.13)] backdrop-blur-2xl">
+                <Award className="mx-auto h-10 w-10 text-[#2563eb]" />
+                <div className="mt-4 text-xs font-black text-slate-400">综合评分</div>
+                <div className="stat-number mt-2 text-6xl text-[#2563eb]">{report.totalScore}</div>
+                <p className="mt-4 text-sm leading-7 text-slate-500">{report.committeeFeedback}</p>
+              </aside>
+              <main className="space-y-5">
+                <section className="rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_60px_rgba(67,106,160,.11)] backdrop-blur-2xl">
+                  <h2 className="font-display text-xl font-black">六维评分</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {report.dimensions.map((item) => (
+                      <div key={item.label} className="rounded-2xl bg-white/64 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-bold">{item.label}</span>
+                          <span className="font-display text-xl font-black text-[#2563eb]">{item.score}</span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">{item.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section className="grid gap-5 lg:grid-cols-2">
+                  <ReportPanel icon={BrainCircuit} title="薄弱点" items={report.weakPoints} />
+                  <ReportPanel icon={BookOpen} title="下一轮主题" items={report.nextDefenseTopics} />
+                </section>
+                <section className="rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_60px_rgba(67,106,160,.11)] backdrop-blur-2xl">
+                  <h2 className="font-display text-xl font-black">模块联动建议</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    {report.moduleRecommendations.map((item) => (
+                      <Link key={item.href} href={item.href} className="rounded-2xl bg-[#111827] p-4 text-white transition hover:-translate-y-0.5">
+                        <div className="font-black">{item.label}</div>
+                        <p className="mt-2 text-xs leading-5 text-white/70">{item.reason}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              </main>
+            </div>
+          )}
         </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="px-6 md:px-10 py-6 md:py-10 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            {
-              icon: Award,
-              title: "答辩评分系统",
-              desc: "AI对答辩表现进行多维度评分",
-              color: "#2563eb",
-              bg: "rgba(37,99,235,0.06)",
-            },
-            {
-              icon: BookOpen,
-              title: "知识盲区诊断",
-              desc: "基于答辩表现识别知识薄弱点",
-              color: "#06b6d4",
-              bg: "rgba(6,182,212,0.06)",
-            },
-            {
-              icon: Mic,
-              title: "口语表达训练",
-              desc: "提升学术汇报与即兴应答能力",
-              color: "#f59e0b",
-              bg: "rgba(245,158,11,0.06)",
-            },
-          ].map((item) => (
-            <div key={item.title} className="glass-card p-5 flex items-start gap-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: item.bg }}
-              >
-                <item.icon className="w-5 h-5" style={{ color: item.color }} />
-              </div>
-              <div>
-                <h3 className="font-display text-sm font-bold text-[#0d0d1a] mb-1">
-                  {item.title}
-                </h3>
-                <p className="text-xs text-[#4a4a6a] leading-relaxed">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+function EditableList({ title, items, onChange }: { title: string; items: string[]; onChange: (items: string[]) => void }) {
+  return (
+    <label className="mt-4 block rounded-[24px] border border-white/80 bg-white/60 p-4">
+      <span className="text-xs font-black text-slate-400">{title}</span>
+      <textarea
+        value={items.join("\n")}
+        onChange={(event) => onChange(event.target.value.split(/\n/).map((item) => item.trim()).filter(Boolean))}
+        className="mt-2 h-28 w-full resize-none bg-transparent text-sm leading-6 text-slate-700 outline-none"
+      />
+    </label>
+  );
+}
+
+function OptionGroup({ label, value, options, onChange }: { label: string; value: string; options: string[][]; onChange: (value: string) => void }) {
+  const activeIndex = Math.max(0, options.findIndex(([id]) => id === value));
+
+  return (
+    <div>
+      <div className="mb-2 text-xs font-black text-slate-400">{label}</div>
+      <div className="relative grid grid-cols-3 gap-2 overflow-hidden rounded-2xl bg-slate-100/70 p-1.5">
+        <span
+          data-defense-option-slider="true"
+          className="absolute bottom-1.5 top-1.5 rounded-xl bg-white shadow-[0_10px_26px_rgba(37,99,235,.12)] transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]"
+          style={{
+            width: `calc((100% - 12px - ${(options.length - 1) * 8}px) / ${options.length})`,
+            transform: `translateX(calc(${activeIndex} * (100% + 8px)))`,
+          }}
+        />
+        {options.map(([id, text]) => (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            className={`relative z-10 rounded-xl px-3 py-2 text-xs transition-colors duration-300 ${
+              value === id
+                ? "font-black text-[#2563eb]"
+                : "font-bold text-slate-500 hover:text-[#111827]"
+            }`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LoadingBubble({ text }: { text: string }) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white">
+        <MessageSquare className="h-4 w-4" />
+      </div>
+      <div className="rounded-3xl rounded-tl-sm bg-white/85 px-4 py-3 text-sm font-semibold text-slate-500">
+        <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function ReportPanel({ icon: Icon, title, items }: { icon: typeof FileUp; title: string; items: string[] }) {
+  return (
+    <div className="rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_60px_rgba(67,106,160,.11)] backdrop-blur-2xl">
+      <div className="mb-4 flex items-center gap-2">
+        <Icon className="h-5 w-5 text-[#2563eb]" />
+        <h2 className="font-display text-xl font-black">{title}</h2>
+      </div>
+      <ul className="space-y-3 text-sm leading-6 text-slate-600">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

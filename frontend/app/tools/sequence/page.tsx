@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useRef } from "react";
-import { ArrowRightLeft, BarChart3, Dna, Flame, Scissors, Upload } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Dna, FileUp, Flame, Scissors, Upload } from "lucide-react";
 
 import {
   calculateNucleotideStats,
@@ -157,6 +158,13 @@ export default function SequencePage() {
           <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
             粘贴 DNA / RNA / 蛋白序列，或上传 .fa / .fasta / .txt 文件，完成类型识别和序列分析。
           </p>
+          <Link
+            href="/seminar?source=序列分析工具&topic=序列分析与实验设计答辩&summary=围绕序列类型、GC 含量、ORF、酶切位点、引物设计和结果解释展开答辩。"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-4 py-2.5 text-sm font-black text-white transition hover:-translate-y-0.5"
+          >
+            <FileUp className="h-4 w-4" />
+            带入答辩
+          </Link>
         </header>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">

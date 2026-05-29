@@ -14,6 +14,7 @@ import {
 import {
   buildKnowledgeCacheKey,
   buildKnowledgePromptMessages,
+  createLocalKnowledgeAnswer,
   normalizeKnowledgeAiResponse,
 } from "./knowledge-ai-types.mjs";
 
@@ -101,6 +102,34 @@ test("AI helper builds stable cache keys and mode-specific prompt messages", () 
   assert.match(messages[1].content, /JSON/);
 });
 
+test("knowledge AI chat prompts and local answers prioritize the latest user question", () => {
+  const context = {
+    mode: "tutor",
+    action: "chat",
+    discipline: { id: "structural-biology", name: "结构生物学" },
+    dimension: { id: "frontier", name: "科研前沿" },
+    node: {
+      id: "alphafold",
+      name: "AlphaFold",
+      summary: "利用深度学习预测蛋白质三维结构。",
+      keyPoints: ["蛋白结构预测", "深度学习"],
+      moduleLinks: [{ label: "蛋白结构工具", href: "/tools/protein" }],
+    },
+    history: [
+      { role: "assistant", content: "AlphaFold 可用于结构预测。" },
+      { role: "user", content: "它和实验解析结构有什么区别？" },
+    ],
+  };
+
+  const messages = buildKnowledgePromptMessages(context);
+  assert.match(messages[1].content, /它和实验解析结构有什么区别/);
+  assert.match(messages[1].content, /先直接回答 latestUserQuestion/);
+
+  const local = createLocalKnowledgeAnswer(context);
+  assert.match(local.answer, /实验解析结构|区别|AlphaFold/);
+  assert.equal(local.source, "local_fallback");
+});
+
 test("AI response normalizer accepts fenced JSON and fills safe defaults", () => {
   const context = {
     mode: "tutor",
@@ -121,6 +150,7 @@ test("AI response normalizer accepts fenced JSON and fills safe defaults", () =>
   const normalized = normalizeKnowledgeAiResponse(raw, context);
   assert.equal(normalized.title, "质粒载体学习脉络");
   assert.match(normalized.answer, /目标基因/);
+  assert.equal(normalized.source, "deepseek");
   assert.ok(normalized.keyPoints.length >= 2);
   assert.ok(normalized.suggestedQuestions.length >= 4);
   assert.deepEqual(normalized.moduleLinks, [{ label: "质粒图谱工具", href: "/tools/plasmid" }]);

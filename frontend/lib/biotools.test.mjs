@@ -59,7 +59,7 @@ test("returns searchable protein candidates instead of a single hardcoded result
   assert.equal(pdb[0].structureUrl, "https://files.rcsb.org/download/4HHB.pdb");
 
   const accession = searchProteinCandidates("P42212");
-  assert.equal(accession[0].sourceKind, "predicted");
+  assert.equal(accession[0].sourceKind, "experimental");
   assert.equal(accession[0].accession, "P42212");
 });
 
@@ -72,6 +72,14 @@ test("supports Chinese protein aliases and does not fall back to unrelated demos
 
   const unknown = searchProteinCandidates("not-a-real-protein-name-xyz");
   assert.deepEqual(unknown, []);
+});
+
+test("direct UniProt accessions keep curated experimental structures when available", () => {
+  const pepsin = searchProteinCandidates("P00790");
+  assert.equal(pepsin[0].accession, "P00790");
+  assert.equal(pepsin[0].pdbId, "1PSO");
+  assert.equal(pepsin[0].sourceKind, "experimental");
+  assert.equal(pepsin[0].structureUrl, "https://files.rcsb.org/download/1PSO.pdb");
 });
 
 test("builds UniProt keyword search URLs and maps remote entries to structure candidates", () => {

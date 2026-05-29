@@ -190,6 +190,13 @@ function DefaultResearchPage() {
           <p className="text-brand-muted text-base md:text-lg font-body max-w-xl mx-auto">
             AI 导师全程陪伴式指导，从文献调研到实验设计再到数据分析，系统培养科研能力
           </p>
+          <Link
+            href="/seminar?source=科研实战&topic=科研训练方案答辩&summary=围绕文献调研、实验设计、数据分析、证据链与研究局限展开开题或论文答辩。"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-5 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1f2937]"
+          >
+            <Presentation className="h-4 w-4" />
+            带入模拟答辩
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-14">

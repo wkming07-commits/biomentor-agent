@@ -43,6 +43,7 @@ export interface KnowledgeAiResponse {
   nextSteps: string[];
   suggestedQuestions: string[];
   moduleLinks: KnowledgeModuleLink[];
+  source?: "deepseek" | "local_fallback";
 }
 
 export function buildKnowledgeCacheKey(context: KnowledgeAiRequest): string;

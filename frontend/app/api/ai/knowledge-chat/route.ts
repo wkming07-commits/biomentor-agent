@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as KnowledgeAiRequest;
     const safeRequest = sanitizeRequest(body);
     const apiKey = process.env.DEEPSEEK_API_KEY;
+    const baseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
     const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
     if (!apiKey) {
@@ -21,7 +22,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -34,7 +38,9 @@ export async function POST(request: NextRequest) {
         max_tokens: 1200,
         response_format: { type: "json_object" },
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!response.ok) {
       return NextResponse.json({

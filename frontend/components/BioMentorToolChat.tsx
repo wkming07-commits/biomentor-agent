@@ -58,6 +58,7 @@ export default function BioMentorToolChat({
             tool,
             mode,
             question,
+            history: mode === "question" ? messages.slice(-8) : [],
             context,
           }),
         });
@@ -87,7 +88,7 @@ export default function BioMentorToolChat({
         setIsLoading(false);
       }
     },
-    [tool, context, contextKey],
+    [tool, context, contextKey, messages],
   );
 
   useEffect(() => {
@@ -112,19 +113,21 @@ export default function BioMentorToolChat({
     if (!trimmed || isLoading) return;
 
     const userMsg: ToolChatMessage = { role: "user", content: trimmed };
-    setMessages((prev) => [...prev, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInput("");
     fetchAiResponse("question", trimmed);
-  }, [input, isLoading, fetchAiResponse]);
+  }, [input, isLoading, messages, fetchAiResponse]);
 
   const handleQuickQuestion = useCallback(
     (q: string) => {
       if (isLoading) return;
       const userMsg: ToolChatMessage = { role: "user", content: q };
-      setMessages((prev) => [...prev, userMsg]);
+      const nextMessages = [...messages, userMsg];
+      setMessages(nextMessages);
       fetchAiResponse("question", q);
     },
-    [isLoading, fetchAiResponse],
+    [isLoading, messages, fetchAiResponse],
   );
 
   const handleKeyDown = useCallback(

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, FileText, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, FileUp, Upload } from "lucide-react";
 
 import { calculateNucleotideStats, circularFeaturePath, describeFeature, detectPlasmidInputKind, parseGenBankFeatures, plasmidExamples } from "@/lib/biotools.mjs";
 import BioMentorToolChat from "@/components/BioMentorToolChat";
@@ -90,6 +91,13 @@ export default function PlasmidPage() {
           <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
             选择经典质粒或上传 GenBank / FASTA，查看环形图谱、元件解释和实验设计提示。
           </p>
+          <Link
+            href="/seminar?source=质粒图谱工具&topic=质粒设计与表达策略答辩&summary=围绕载体元件、复制起点、筛选标记、启动子、插入片段和表达策略展开答辩。"
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-4 py-2.5 text-sm font-black text-white transition hover:-translate-y-0.5"
+          >
+            <FileUp className="h-4 w-4" />
+            带入答辩
+          </Link>
         </header>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">

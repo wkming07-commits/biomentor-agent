@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import Script from "next/script";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, ChevronRight, FlaskConical, Layers, RotateCw, Search, ZoomIn } from "lucide-react";
+import { Box, ChevronRight, FileUp, FlaskConical, Layers, RotateCw, Search, ZoomIn } from "lucide-react";
 
 import { searchProteinCandidates } from "@/lib/biotools.mjs";
 import BioMentorToolChat from "@/components/BioMentorToolChat";
@@ -176,6 +177,13 @@ export default function ProteinPage() {
             <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
               输入蛋白名、基因名、PDB ID 或 UniProt ID，先选择候选结果，再查看三维结构和学习解释。
             </p>
+            <Link
+              href="/seminar?source=蛋白结构工具&topic=蛋白结构与功能机制答辩&summary=围绕蛋白名称、PDB/UniProt、结构来源、活性位点和实验验证展开答辩。"
+              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#111827] px-4 py-2.5 text-sm font-black text-white transition hover:-translate-y-0.5"
+            >
+              <FileUp className="h-4 w-4" />
+              带入答辩
+            </Link>
           </div>
         </header>
 

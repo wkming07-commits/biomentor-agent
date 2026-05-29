@@ -8,6 +8,7 @@ import {
   ChevronDown,
   TrendingUp,
   Users,
+  FileUp,
 } from "lucide-react";
 import { IndustryCaseCard } from "@/components/IndustryCaseCard";
 import { IndustryCaseDetailModal } from "@/components/IndustryCaseDetailModal";
@@ -101,6 +102,13 @@ export default function CasesPage() {
                 查看产业案例
                 <ChevronDown className="w-4 h-4" />
               </button>
+              <Link
+                href="/seminar?source=产业案例&topic=产业转化案例答辩&summary=围绕真实产业案例、科研基础、应用价值、转化风险和岗位能力路径展开答辩。"
+                className="btn-hero-secondary cursor-pointer"
+              >
+                <FileUp className="w-4 h-4" />
+                带入答辩
+              </Link>
             </div>
           </div>
         </section>
