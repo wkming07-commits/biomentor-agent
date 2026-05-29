@@ -7,7 +7,6 @@ import {
   BookOpen,
   BrainCircuit,
   Building2,
-  Camera,
   ChevronRight,
   FlaskConical,
   GitBranch,
@@ -64,14 +63,6 @@ const modules = [
     tags: ["讨论", "汇报", "答辩表达"],
     icon: MessageCircle,
     accent: "#fb7185",
-  },
-  {
-    href: "/photo-learning",
-    title: "拍照学练",
-    desc: "上传课本图片，自动识别知识点并生成练习题、科研拓展和产业联系。",
-    tags: ["OCR", "自动出题", "知识匹配"],
-    icon: Camera,
-    accent: "#f97316",
   },
 ];
 

@@ -16,8 +16,10 @@ import {
   FileQuestion,
   ChevronRight,
   Microscope,
+  Camera,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface Message {
   role: "user" | "ai";
@@ -540,6 +542,23 @@ export default function ExplorePage() {
             </button>
           </div>
         )}
+
+        {/* 拍照学练入口：知识探索的子模块 */}
+        <div className="mt-8 text-center">
+          <div className="inline-flex items-center gap-2 px-5 py-3 glass-card rounded-2xl">
+            <Camera className="w-4 h-4 text-accent-electric" />
+            <span className="text-sm text-brand-muted font-body">
+              需要从课本文本直接匹配知识库并出题？
+            </span>
+            <Link
+              href="/photo-learning"
+              className="text-sm font-semibold text-accent-electric hover:text-brand-ink transition-colors inline-flex items-center gap-1"
+            >
+              拍照学练（高级模式）
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
