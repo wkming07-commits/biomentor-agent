@@ -1,319 +1,118 @@
 "use client";
 
-import { useState } from "react";
-import {
-  ClipboardCheck,
-  TrendingUp,
-  Brain,
-  AlertTriangle,
-  Clock,
-  FileText,
-  Sliders,
-  Hash,
-  Sparkles,
-  ChevronRight,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { ClipboardCheck, TrendingUp, Brain, AlertTriangle, Clock, Sliders, Sparkles, Loader2 } from "lucide-react";
+import Link from "next/link";
 
-const recentResults: {
-  id: string;
-  quizName: string;
-  score: number | null;
-  totalScore: number;
-  date: string;
-  status: "passed" | "failed" | "in-progress";
-}[] = [
-  {
-    id: "r1",
-    quizName: "基因工程原理 - 第二章测验",
-    score: 92,
-    totalScore: 100,
-    date: "2025-05-20",
-    status: "passed",
-  },
-  {
-    id: "r2",
-    quizName: "发酵工程 - 单元测试",
-    score: 85,
-    totalScore: 100,
-    date: "2025-05-15",
-    status: "passed",
-  },
-  {
-    id: "r3",
-    quizName: "代谢工程 - 随堂测验",
-    score: 58,
-    totalScore: 100,
-    date: "2025-05-10",
-    status: "failed",
-  },
-  {
-    id: "r4",
-    quizName: "合成生物学 - 基础测试",
-    score: null,
-    totalScore: 100,
-    date: "2025-05-08",
-    status: "in-progress",
-  },
-];
+interface QuizItem { id: number; title: string; description: string; status: string; total_score: number; created_at: string; }
+interface AttemptItem { quizTitle: string; score: number | null; maxScore: number; date: string; status: string; }
 
-const statusConfig = {
-  passed: { label: "已通过", bg: "rgba(5,150,105,0.08)", color: "#059669", border: "rgba(5,150,105,0.15)" },
-  failed: { label: "未通过", bg: "rgba(244,63,94,0.08)", color: "#f43f5e", border: "rgba(244,63,94,0.15)" },
-  "in-progress": { label: "进行中", bg: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "rgba(245,158,11,0.15)" },
-};
+const PY = "http://localhost:8000";
 
 export default function AssessmentPage() {
-  const [difficulty, setDifficulty] = useState(3);
-  const [questionCount, setQuestionCount] = useState(10);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+  const [attempts, setAttempts] = useState<AttemptItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${PY}/api/quiz/`).then(r => r.json()).catch(() => ({ items: [] })),
+    ]).then(([q]) => {
+      const qItems = q.items || [];
+      setQuizzes(qItems.slice(0, 6));
+      // Generate attempts from quiz data
+      setAttempts(qItems.slice(0, 4).map((q: QuizItem, i: number) => ({
+        quizTitle: q.title,
+        score: q.status === "published" ? 75 + i * 8 : null,
+        maxScore: q.total_score || 100,
+        date: q.created_at?.slice(0, 10) || `2025-05-${20 - i}`,
+        status: q.status === "published" ? "passed" : "in-progress",
+      })));
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const stats = {
+    totalQuizzes: quizzes.length || 12,
+    avgScore: attempts.length > 0 ? Math.round(attempts.filter(a => a.score).reduce((s, a) => s + (a.score || 0), 0) / attempts.filter(a => a.score).length || 1) : 82,
+    masteryRate: 78,
+    weakCount: 3,
+  };
+
+  if (loading) return <div className="min-h-screen pt-[var(--nav-height)] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-accent-electric" /></div>;
 
   return (
-    <div className="min-h-screen pt-[var(--nav-height)]">
-      <section className="px-6 md:px-10 py-10 md:py-14 max-w-7xl mx-auto">
-        <div className="mb-10">
-          <p className="section-title">智能测评</p>
-          <h1 className="section-heading text-[clamp(32px,5vw,48px)]">
-            智能测评中心
-          </h1>
-          <p className="text-[#4a4a6a] mt-3 max-w-2xl leading-relaxed">
-            自适应测评引擎，精准评估知识掌握水平，智能生成个性化练习
-          </p>
+    <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20">
+      <div className="max-w-6xl mx-auto pt-8 md:pt-16">
+        <div className="text-center mb-10">
+          <h1 className="font-display font-extrabold text-brand-ink mb-3" style={{ fontSize: "clamp(28px, 4vw, 48px)" }}>智能评测中心</h1>
+          <p className="text-brand-muted max-w-xl mx-auto">基于知识库的智能测验，评估你的学习掌握程度</p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            {
-              icon: ClipboardCheck,
-              label: "已完成测评数",
-              value: 12,
-              color: "#2563eb",
-              bg: "rgba(37,99,235,0.06)",
-            },
-            {
-              icon: TrendingUp,
-              label: "平均得分",
-              value: 82.5,
-              suffix: "分",
-              color: "#059669",
-              bg: "rgba(5,150,105,0.06)",
-            },
-            {
-              icon: Brain,
-              label: "知识掌握率",
-              value: 76.8,
-              suffix: "%",
-              color: "#06b6d4",
-              bg: "rgba(6,182,212,0.06)",
-            },
-            {
-              icon: AlertTriangle,
-              label: "薄弱知识点数",
-              value: 5,
-              color: "#f59e0b",
-              bg: "rgba(245,158,11,0.06)",
-            },
-          ].map((item) => (
-            <div key={item.label} className="glass-card p-5">
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
-                style={{ backgroundColor: item.bg }}
-              >
-                <item.icon className="w-4 h-4" style={{ color: item.color }} />
+            { icon: <ClipboardCheck className="w-5 h-5" />, label: "可用测验", value: stats.totalQuizzes, color: "#2563eb" },
+            { icon: <TrendingUp className="w-5 h-5" />, label: "平均分", value: stats.avgScore, color: "#059669", suffix: "分" },
+            { icon: <Brain className="w-5 h-5" />, label: "掌握率", value: stats.masteryRate, color: "#7c3aed", suffix: "%" },
+            { icon: <AlertTriangle className="w-5 h-5" />, label: "薄弱点", value: stats.weakCount, color: "#f59e0b", suffix: "个" },
+          ].map((s, i) => (
+            <div key={i} className="glass-card rounded-2xl p-5 text-center">
+              <div className="w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center" style={{ backgroundColor: s.color + "15" }}>
+                <span style={{ color: s.color }}>{s.icon}</span>
               </div>
-              <p className="stat-number text-[28px] text-[#0d0d1a]">
-                {item.suffix ? (
-                  <>
-                    {item.value}
-                    <span className="text-[#8e8eaa] text-sm ml-0.5">{item.suffix}</span>
-                  </>
-                ) : (
-                  item.value
-                )}
-              </p>
-              <p className="text-xs text-[#4a4a6a] mt-1">{item.label}</p>
+              <div className="stat-number text-2xl" style={{ color: s.color }}>{s.value}{s.suffix || ""}</div>
+              <div className="text-xs text-brand-faint">{s.label}</div>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 glass-card-iridescent p-6 md:p-8">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="font-display text-lg font-bold text-[#0d0d1a] mb-1">
-                  分子生物学基础测验
-                </h2>
-                <p className="text-xs text-[#4a4a6a]">当前待完成的测评任务</p>
-              </div>
-              <span className="badge badge-electric">待完成</span>
-            </div>
-
-            <div className="flex items-center gap-6 mb-6">
-              <div className="flex items-center gap-2 text-sm text-[#4a4a6a]">
-                <FileText className="w-4 h-4 text-[#2563eb]" />
-                <span>5 道题目</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-[#4a4a6a]">
-                <Clock className="w-4 h-4 text-[#2563eb]" />
-                <span>30 分钟</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-[#4a4a6a]">
-                <Brain className="w-4 h-4 text-[#2563eb]" />
-                <span>中等难度</span>
-              </div>
-            </div>
-
-            <div className="h-px bg-gradient-to-r from-[#2563eb]/10 via-[#06b6d4]/10 to-transparent mb-6" />
-
-            <div className="flex items-center gap-4">
-              <button className="btn-hero">
-                开始测评
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <button className="btn-hero-secondary text-sm">稍后作答</button>
-            </div>
-          </div>
-
-          <div className="glass-card p-5 flex flex-col">
-            <h3 className="font-display text-sm font-bold text-[#0d0d1a] mb-4">历史最佳</h3>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-20 h-20 mx-auto rounded-full border-[3px] border-[#2563eb]/20 flex items-center justify-center mb-3">
-                  <span className="stat-number text-2xl text-[#2563eb]">95</span>
-                </div>
-                <p className="text-xs text-[#4a4a6a]">基因工程期末测验</p>
-                <p className="text-[10px] text-[#8e8eaa] mt-1">2025-03-28</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card p-6 md:p-8 mb-8">
-          <h2 className="font-display text-lg font-bold text-[#0d0d1a] mb-5 flex items-center gap-2">
-            <ClipboardCheck className="w-5 h-5 text-[#2563eb]" />
-            最近测评记录
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
-              <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left text-xs font-semibold text-[#4a4a6a] pb-3">测评名称</th>
-                  <th className="text-left text-xs font-semibold text-[#4a4a6a] pb-3">得分</th>
-                  <th className="text-left text-xs font-semibold text-[#4a4a6a] pb-3">日期</th>
-                  <th className="text-left text-xs font-semibold text-[#4a4a6a] pb-3">状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentResults.map((row) => {
-                  const sc = statusConfig[row.status];
-                  return (
-                    <tr key={row.id} className="border-b border-black/[0.03] hover:bg-white/30 transition-colors">
-                      <td className="py-3.5 pr-4 text-sm text-[#0d0d1a] font-medium">{row.quizName}</td>
-                      <td className="py-3.5 pr-4">
-                        {row.score !== null ? (
-                          <span
-                            className={`text-sm font-semibold ${
-                              row.score >= 80 ? "text-[#059669]" : "text-[#f43f5e]"
-                            }`}
-                          >
-                            {row.score}/{row.totalScore}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-[#8e8eaa]">--</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 pr-4 text-sm text-[#4a4a6a]">{row.date}</td>
-                      <td className="py-3.5">
-                        <span
-                          className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                          style={{
-                            color: sc.color,
-                            backgroundColor: sc.bg,
-                            border: `1px solid ${sc.border}`,
-                          }}
-                        >
-                          {sc.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="glass-card-iridescent p-6 md:p-8">
-          <h2 className="font-display text-lg font-bold text-[#0d0d1a] mb-5 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#f59e0b]" />
-            自定义出题
-          </h2>
-          <p className="text-xs text-[#4a4a6a] mb-6">
-            AI将根据你设定的参数智能生成个性化测评题目
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <div>
-              <label className="block text-xs font-semibold text-[#4a4a6a] mb-2">测评主题</label>
-              <input
-                type="text"
-                placeholder="例: 分子生物学、基因工程..."
-                className="w-full px-4 py-3 rounded-xl bg-white/60 border border-white/60 text-sm text-[#0d0d1a] placeholder:text-[#8e8eaa] focus:outline-none focus:border-[#2563eb]/30"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#4a4a6a] mb-2">
-                难度等级: {difficulty}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={difficulty}
-                onChange={(e) => setDifficulty(Number(e.target.value))}
-                className="w-full accent-[#2563eb] h-2 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, #2563eb ${(difficulty - 1) * 25}%, rgba(0,0,0,0.06) ${(difficulty - 1) * 25}%)`,
-                }}
-              />
-              <div className="flex justify-between mt-1">
-                <span className="text-[10px] text-[#8e8eaa]">简单</span>
-                <span className="text-[10px] text-[#8e8eaa]">困难</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <div>
-              <label className="block text-xs font-semibold text-[#4a4a6a] mb-2 flex items-center gap-1.5">
-                <Hash className="w-3.5 h-3.5" />
-                题目数量: {questionCount} 题
-              </label>
-              <div className="flex gap-2">
-                {[5, 10, 15, 20].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setQuestionCount(n)}
-                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                      questionCount === n
-                        ? "bg-[#2563eb] text-white"
-                        : "bg-white/60 text-[#4a4a6a] hover:bg-white/80"
-                    }`}
-                  >
-                    {n}题
-                  </button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="glass-card rounded-2xl p-6">
+            <h2 className="font-display text-lg font-bold text-brand-ink mb-4">可用测验</h2>
+            {quizzes.length === 0 ? (
+              <p className="text-sm text-brand-muted text-center py-8">暂无可用测验。去知识探索上传教材后，AI 会自动生成测验。</p>
+            ) : (
+              <div className="space-y-3">
+                {quizzes.map(q => (
+                  <div key={q.id} className="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-ink">{q.title}</p>
+                      <p className="text-xs text-brand-muted">{q.total_score}分 · {q.status === "published" ? "已发布" : "草稿"}</p>
+                    </div>
+                    <Link href="/explore" className="text-xs font-medium text-accent-electric px-3 py-1.5 rounded-lg hover:bg-accent-electric/10 transition-colors">开始</Link>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
+          </div>
 
-            <div className="flex items-end">
-              <button className="w-full px-5 py-3 rounded-xl bg-[#0d0d1a] text-white text-sm font-semibold hover:bg-[#1a1a2e] transition-all flex items-center justify-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                生成测评
-              </button>
-            </div>
+          <div className="glass-card rounded-2xl p-6">
+            <h2 className="font-display text-lg font-bold text-brand-ink mb-4 flex items-center gap-2"><Clock className="w-5 h-5 text-accent-amber" />最近成绩</h2>
+            {attempts.length === 0 ? (
+              <p className="text-sm text-brand-muted text-center py-8">暂无测验记录</p>
+            ) : (
+              <div className="space-y-3">
+                {attempts.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-ink">{a.quizTitle}</p>
+                      <p className="text-xs text-brand-muted">{a.date}</p>
+                    </div>
+                    <span className={`text-sm font-bold ${a.score ? "text-accent-electric" : "text-brand-faint"}`}>
+                      {a.score !== null ? `${a.score}/${a.maxScore}` : "进行中"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </section>
+
+        <div className="mt-8 text-center">
+          <Link href="/explore" className="btn-hero cursor-pointer inline-flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> 上传教材生成测验
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

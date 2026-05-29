@@ -206,7 +206,61 @@ export function extractPlainTextFromOfficeXml(xml = "") {
 export function normalizeDefenseAiJson(raw, fallback) {
   const parsed = safeParseJson(raw);
   if (!parsed) return fallback;
+  // Normalize committeeRole: if it's an object, extract label
+  if (parsed.committeeRole && typeof parsed.committeeRole === "object") {
+    parsed.committeeRole = parsed.committeeRole.label || parsed.committeeRole.id || String(parsed.committeeRole);
+  }
+  // Normalize content: if it's an object with question, extract it
+  if (parsed.question && !parsed.content) {
+    parsed.content = parsed.question;
+  }
   return parsed;
+}
+
+export function normalizeDefenseReport(parsed, fallback) {
+  if (!parsed || typeof parsed !== "object") return fallback;
+
+  // Ensure totalScore is a number
+  const totalScore = typeof parsed.totalScore === "number" ? parsed.totalScore
+    : parseInt(String(parsed.totalScore), 10) || fallback.totalScore || 75;
+
+  // Normalize dimensions: always convert to array
+  let dimensions = [];
+  const rawDims = parsed.dimensions;
+  if (Array.isArray(rawDims)) {
+    dimensions = rawDims.map((d) => ({
+      label: String(d.label || d.name || d.dimension || ""),
+      score: typeof d.score === "number" ? d.score : parseInt(String(d.score), 10) || 70,
+      comment: String(d.comment || d.feedback || d.note || ""),
+    }));
+  } else if (rawDims && typeof rawDims === "object") {
+    // Object format: { "科学问题": { score: 85, comment: "..." }, ... }
+    dimensions = Object.entries(rawDims).map(([key, val]) => ({
+      label: key,
+      score: val && typeof val === "object" ? (typeof val.score === "number" ? val.score : 70) : 70,
+      comment: val && typeof val === "object" ? String(val.comment || "") : "",
+    }));
+  }
+  if (dimensions.length === 0) dimensions = fallback.dimensions || [];
+
+  // Normalize string arrays
+  const arr = (v, fb) => Array.isArray(v) ? v.map(String) : (fb || []);
+  const str = (v, fb) => (typeof v === "string" && v) ? v : String(fb || "");
+
+  return {
+    totalScore,
+    dimensions,
+    committeeFeedback: str(parsed.committeeFeedback, fallback.committeeFeedback),
+    weakPoints: arr(parsed.weakPoints, fallback.weakPoints),
+    moduleRecommendations: Array.isArray(parsed.moduleRecommendations) && parsed.moduleRecommendations.length
+      ? parsed.moduleRecommendations.map((m) => ({
+          label: str(m?.label || m, ""),
+          href: str(m?.href, "#"),
+          reason: str(m?.reason, ""),
+        }))
+      : (fallback.moduleRecommendations || []),
+    nextDefenseTopics: arr(parsed.nextDefenseTopics, fallback.nextDefenseTopics),
+  };
 }
 
 function scoreItem(label, score, comment) {

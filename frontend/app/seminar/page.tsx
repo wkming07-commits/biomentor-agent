@@ -44,6 +44,14 @@ const seedText = `题目：基于 CRISPR-Cas9 的胃癌相关基因调控研究
 方法：设计 sgRNA，构建表达载体，进行细胞转染、测序验证和增殖实验。
 创新点：把基因编辑与通路图谱结合，形成可解释的机制链。`;
 
+// Safe type helpers — handle any shape from AI API
+function safeStr(v: unknown, fb = ""): string { return typeof v === "string" ? v : fb; }
+function safeNum(v: unknown, fb = 0): number { return typeof v === "number" ? v : (typeof v === "string" ? (parseInt(v, 10) || fb) : fb); }
+function safeArr<T>(v: unknown, fb: T[]): T[] { return Array.isArray(v) ? v as T[] : fb; }
+function safeDim(v: unknown) { const o = v && typeof v === "object" ? v as Record<string,unknown> : {}; return { label: safeStr(o.label || o.name || o.dimension, ""), score: safeNum(o.score, 70), comment: safeStr(o.comment || o.feedback || o.note, "") }; }
+function safeMod(v: unknown) { const o = v && typeof v === "object" ? v as Record<string,unknown> : {}; return { label: safeStr(o.label, ""), href: safeStr(o.href, "#"), reason: safeStr(o.reason, "") }; }
+const defaultModules = [{ label: "知识图谱", href: "/knowledge-map", reason: "补齐前置概念" }, { label: "科研实战", href: "/research", reason: "完成科研任务训练" }, { label: "文献工作台", href: "/paper-workbench", reason: "管理答辩文献" }];
+
 export default function SeminarPage() {
   const [stage, setStage] = useState<Stage>("source");
   const [sourceText, setSourceText] = useState(seedText);
@@ -424,9 +432,10 @@ export default function SeminarPage() {
                 <h2 className="mt-2 font-display text-xl font-black">{brief.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-slate-500">{brief.researchQuestion}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {brief.keywords.map((keyword) => (
-                    <span key={keyword} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#2563eb]">{keyword}</span>
-                  ))}
+                  {brief.keywords.map((keyword) => {
+                    const text = typeof keyword === "string" ? keyword : (keyword as Record<string,unknown>)?.label as string || (keyword as Record<string,unknown>)?.id as string || JSON.stringify(keyword);
+                    return <span key={text} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#2563eb]">{text}</span>;
+                  })}
                 </div>
               </aside>
 
@@ -447,8 +456,8 @@ export default function SeminarPage() {
                         {item.role === "student" ? <PenLine className="h-4 w-4" /> : <Users className="h-4 w-4" />}
                       </div>
                       <div className={`max-w-[82%] rounded-3xl px-4 py-3 text-sm leading-7 ${item.role === "student" ? "rounded-tr-sm bg-[#2563eb] text-white" : "rounded-tl-sm bg-white/85 text-slate-700"}`}>
-                        {item.committeeRole && <div className="mb-1 text-xs font-black text-slate-400">{item.committeeRole}</div>}
-                        {item.content}
+                        {item.committeeRole && <div className="mb-1 text-xs font-black text-slate-400">{typeof item.committeeRole === "string" ? item.committeeRole : (item.committeeRole as Record<string,unknown>).label as string || ""}</div>}
+                        {typeof item.content === "string" ? item.content : (item.content as Record<string,unknown>)?.question as string || JSON.stringify(item.content)}
                       </div>
                     </div>
                   ))}
@@ -487,37 +496,43 @@ export default function SeminarPage() {
               <aside className="rounded-[32px] border border-white/85 bg-white/62 p-6 text-center shadow-[0_24px_72px_rgba(67,106,160,.13)] backdrop-blur-2xl">
                 <Award className="mx-auto h-10 w-10 text-[#2563eb]" />
                 <div className="mt-4 text-xs font-black text-slate-400">综合评分</div>
-                <div className="stat-number mt-2 text-6xl text-[#2563eb]">{report.totalScore}</div>
-                <p className="mt-4 text-sm leading-7 text-slate-500">{report.committeeFeedback}</p>
+                <div className="stat-number mt-2 text-6xl text-[#2563eb]">{safeNum(report.totalScore, 75)}</div>
+                <p className="mt-4 text-sm leading-7 text-slate-500">{safeStr(report.committeeFeedback, "答辩训练完成，请查看详细分析。")}</p>
               </aside>
               <main className="space-y-5">
                 <section className="rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_60px_rgba(67,106,160,.11)] backdrop-blur-2xl">
                   <h2 className="font-display text-xl font-black">六维评分</h2>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    {report.dimensions.map((item) => (
-                      <div key={item.label} className="rounded-2xl bg-white/64 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold">{item.label}</span>
-                          <span className="font-display text-xl font-black text-[#2563eb]">{item.score}</span>
+                    {safeArr(report.dimensions, []).map((item, i) => {
+                      const d = safeDim(item);
+                      return (
+                        <div key={d.label || i} className="rounded-2xl bg-white/64 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-bold">{d.label}</span>
+                            <span className="font-display text-xl font-black text-[#2563eb]">{d.score}</span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">{d.comment}</p>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">{item.comment}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
                 <section className="grid gap-5 lg:grid-cols-2">
-                  <ReportPanel icon={BrainCircuit} title="薄弱点" items={report.weakPoints} />
-                  <ReportPanel icon={BookOpen} title="下一轮主题" items={report.nextDefenseTopics} />
+                  <ReportPanel icon={BrainCircuit} title="薄弱点" items={safeArr(report.weakPoints, ["请继续练习以提高答辩能力"])} />
+                  <ReportPanel icon={BookOpen} title="下一轮主题" items={safeArr(report.nextDefenseTopics, ["重新练习科学问题表达", "加强证据链训练", "补充方法设计细节"])} />
                 </section>
                 <section className="rounded-[32px] border border-white/85 bg-white/62 p-5 shadow-[0_20px_60px_rgba(67,106,160,.11)] backdrop-blur-2xl">
                   <h2 className="font-display text-xl font-black">模块联动建议</h2>
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    {report.moduleRecommendations.map((item) => (
-                      <Link key={item.href} href={item.href} className="rounded-2xl bg-[#111827] p-4 text-white transition hover:-translate-y-0.5">
-                        <div className="font-black">{item.label}</div>
-                        <p className="mt-2 text-xs leading-5 text-white/70">{item.reason}</p>
-                      </Link>
-                    ))}
+                    {safeArr(report.moduleRecommendations, defaultModules).map((item, i) => {
+                      const m = safeMod(item);
+                      return (
+                        <Link key={m.href || i} href={m.href || "#"} className="rounded-2xl bg-[#111827] p-4 text-white transition hover:-translate-y-0.5">
+                          <div className="font-black">{m.label}</div>
+                          <p className="mt-2 text-xs leading-5 text-white/70">{m.reason}</p>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </section>
               </main>

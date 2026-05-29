@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { content, fileName } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const content = body.content || "";
+    const fileName = body.fileName || "";
+
+    if (!content) {
+      return NextResponse.json({ success: false, error: "请提供教材内容" }, { status: 400 });
+    }
 
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
     if (!DEEPSEEK_API_KEY) {
-      throw new Error("DEEPSEEK_API_KEY 环境变量未配置");
+      return NextResponse.json({ success: false, error: "AI 服务未配置" }, { status: 503 });
     }
 
     let subject = "生物学";
