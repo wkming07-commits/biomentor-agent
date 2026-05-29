@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/tools", label: "生物工具箱" },
   { href: "/cases", label: "产业案例" },
   { href: "/knowledge-map", label: "知识图谱" },
+  { href: "/photo-learning", label: "拍照学练" },
   { href: "/seminar", label: "学术研讨" },
 ];
 

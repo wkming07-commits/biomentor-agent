@@ -8,4 +8,10 @@ from app.routers import (
     rag,
     ai_generate,
     attempt,
+    diagnosis,
+    industry_cases,
+    research,
+    photo_learning,
+    knowledge_graph,
+    agent,
 )

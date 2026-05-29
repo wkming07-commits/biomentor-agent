@@ -1,11 +1,13 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Compass, RotateCcw, Sparkles } from "lucide-react";
+import { ChevronRight, Compass, RotateCcw, Sparkles, BookOpen, FlaskConical } from "lucide-react";
 
 import { findMindMapNode, findMindMapPath, mindMapRoot, type MindMapNode, type MindMapStatus } from "@/lib/mindmap-data";
+import { knowledgePapers, knowledgeResearchTasks, getConceptById } from "@/data/knowledgeBase";
+import { getResearchTasksByConcept } from "@/lib/knowledgeSearch";
 
 const statusStyles: Record<MindMapStatus, { label: string; color: string; bg: string }> = {
   mastered: { label: "已掌握", color: "#2563eb", bg: "rgba(37,99,235,.1)" },
@@ -21,6 +23,53 @@ interface PositionedNode {
   y: number;
   level: number;
   parentId?: string;
+}
+
+/** 思维导图节点到知识库概念ID的映射 */
+const nodeToConceptMap: Record<string, string> = {
+  "crispr-cas": "conc-004",
+  "cell-cycle": "conc-003",
+  "apoptosis": "conc-012",
+  "plasmid-vector": "conc-004",
+  "protein-basic": "conc-005",
+  "gene-regulation": "conc-003",
+  "central-dogma": "conc-003",
+  "dna": "conc-003",
+};
+
+/** 获取节点关联的知识库文献和任务 */
+function getNodeRecommendations(nodeId: string): {
+  papers: { id: string; title: string; titleZh: string; venue: string; year: number }[];
+  tasks: { id: string; title: string; difficulty: string }[];
+} {
+  const conceptId = nodeToConceptMap[nodeId];
+  if (!conceptId) {
+    // 尝试从全局概念中模糊匹配
+    const allConcepts = [getConceptById("conc-004"), getConceptById("conc-007"), getConceptById("conc-001")].filter(Boolean);
+    const papers = allConcepts.flatMap((c) =>
+      c!.relatedPaperIds.map((pid) => {
+        const p = knowledgePapers.find((pp) => pp.id === pid);
+        return p ? { id: p.id, title: p.title, titleZh: p.titleZh, venue: p.venue, year: p.year } : null;
+      }).filter(Boolean),
+    ).slice(0, 3) as { id: string; title: string; titleZh: string; venue: string; year: number }[];
+    return { papers: papers.slice(0, 3), tasks: [] };
+  }
+  const concept = getConceptById(conceptId);
+  if (!concept) return { papers: [], tasks: [] };
+
+  const papers = concept.relatedPaperIds
+    .map((pid) => {
+      const p = knowledgePapers.find((pp) => pp.id === pid);
+      return p ? { id: p.id, title: p.title, titleZh: p.titleZh, venue: p.venue, year: p.year } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 3) as { id: string; title: string; titleZh: string; venue: string; year: number }[];
+
+  const tasks = getResearchTasksByConcept(conceptId)
+    .slice(0, 2)
+    .map((t) => ({ id: t.id, title: t.title, difficulty: t.difficulty }));
+
+  return { papers, tasks };
 }
 
 export default function MindMapPage() {
@@ -41,6 +90,7 @@ export default function MindMapPage() {
   const focusedPath = findMindMapPath(selectedId).map((node) => node.id);
   const positioned = useMemo(() => layoutNodes(expanded), [expanded]);
   const edges = useMemo(() => positioned.filter((item) => item.parentId), [positioned]);
+  const recommendations = useMemo(() => getNodeRecommendations(selectedId), [selectedId]);
 
   const toggleNode = (node: MindMapNode) => {
     setSelectedId(node.id);
@@ -62,7 +112,7 @@ export default function MindMapPage() {
             <p className="section-title">BioMind Map</p>
             <h1 className="font-display text-3xl md:text-5xl font-black tracking-[-0.05em] text-[#111827]">渐进展开式思维导图</h1>
             <p className="mt-4 max-w-3xl text-brand-muted leading-relaxed">
-              初始只展示一级主题，点击节点逐步展开子节点；详细解释、推荐工具和下一步放在右侧面板。
+              初始只展示一级主题，点击节点逐步展开子节点；详细解释、推荐工具、下一步以及前沿文献和科研任务推荐放在右侧面板。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -137,6 +187,52 @@ export default function MindMapPage() {
                 <Link href={selectedNode.tool.href} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#111827] px-4 py-3 text-sm font-bold text-white hover:bg-[#1f2937] transition-all">
                   {selectedNode.tool.label}<ChevronRight className="w-4 h-4" />
                 </Link>
+              )}
+
+              {/* 前沿文献推荐 */}
+              {recommendations.papers.length > 0 && (
+                <Panel title="前沿文献推荐">
+                  <div className="space-y-2">
+                    {recommendations.papers.map((paper) => (
+                      <Link
+                        key={paper.id}
+                        href={`/explore`}
+                        className="block p-2.5 rounded-xl bg-white/60 border border-white/70 hover:border-accent-electric/20 transition-all"
+                      >
+                        <div className="flex items-start gap-2">
+                          <BookOpen className="w-3.5 h-3.5 text-accent-electric shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-[#111827] leading-snug">{paper.titleZh}</p>
+                            <p className="text-[10px] text-brand-faint">{paper.venue} · {paper.year}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </Panel>
+              )}
+
+              {/* 推荐科研任务 */}
+              {recommendations.tasks.length > 0 && (
+                <Panel title="推荐科研任务">
+                  <div className="space-y-2">
+                    {recommendations.tasks.map((task) => (
+                      <Link
+                        key={task.id}
+                        href="/research"
+                        className="block p-2.5 rounded-xl bg-white/60 border border-white/70 hover:border-accent-electric/20 transition-all"
+                      >
+                        <div className="flex items-start gap-2">
+                          <FlaskConical className="w-3.5 h-3.5 text-accent-cyan shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-[#111827] leading-snug">{task.title}</p>
+                            <p className="text-[10px] text-brand-faint">难度：{task.difficulty}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </Panel>
               )}
             </div>
           </aside>
