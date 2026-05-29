@@ -343,7 +343,7 @@ export default function ExplorePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="glass-card rounded-2xl p-6 md:p-8 h-[930px] overflow-hidden flex flex-col">
+            <div className="glass-card rounded-2xl p-6 md:p-8 min-h-[520px] flex flex-col">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-blue-500" />
                 <h2 className="font-semibold text-gray-800">AI知识总结</h2>
