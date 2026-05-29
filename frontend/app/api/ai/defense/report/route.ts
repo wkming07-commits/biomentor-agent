@@ -4,6 +4,7 @@ import {
   buildDefensePromptMessages,
   generateLocalDefenseReport,
   normalizeDefenseAiJson,
+  normalizeDefenseReport,
 } from "@/lib/defense-flow.mjs";
 
 export async function POST(request: NextRequest) {
@@ -47,7 +48,9 @@ async function callDefenseAi({ messages, maxTokens, fallback }: { messages: unkn
     clearTimeout(timeout);
     if (!response.ok) return fallback;
     const result = await response.json();
-    return normalizeDefenseAiJson(result?.choices?.[0]?.message?.content || "", fallback);
+    const raw = result?.choices?.[0]?.message?.content || "";
+    const aiParsed = normalizeDefenseAiJson(raw, fallback);
+    return normalizeDefenseReport(aiParsed, fallback as Record<string,unknown>);
   } catch {
     clearTimeout(timeout);
     return fallback;
