@@ -79,19 +79,48 @@ export async function POST(request: NextRequest) {
       const result = await response.json();
       textContent = result.choices[0].message.content;
     } else if (content.startsWith("data:application/pdf;base64,")) {
-      const prompt = `请分析以下PDF文件内容，假设这是${subject}教材内容，文件名为：${fileName || "未知"}，提取核心知识点、关键词和学习建议：
+      const pdfBase64 = content.split(",")[1];
+      const maxPdfSize = 10 * 1024 * 1024;
+      const pdfBytes = Buffer.from(pdfBase64, "base64");
+      
+      if (pdfBytes.length > maxPdfSize) {
+        return NextResponse.json({ success: false, error: "PDF文件过大，请上传小于10MB的文件" }, { status: 400 });
+      }
 
-请按照以下格式输出：
-1. 知识点标题：详细内容描述
-2. 知识点标题：详细内容描述
-...
+      const prompt = `请分析以下PDF文件的内容，假设这是${subject}教材内容，文件名为：${fileName || "未知"}。
 
-关键词：关键词1, 关键词2, 关键词3...
+请按照以下结构化要求输出：
 
-学习建议：
-- 建议内容1
-- 建议内容2
-- 建议内容3`;
+【核心知识点】
+请从内容中提炼最重要的5-8个核心知识点，优先选择具有统摄性、基础性的概念。对于并列关系的知识点（如同类分类、同级结构等），请进行整合归纳，避免重复罗列。每个知识点聚焦一个核心概念或机制，内容精炼、重点突出。
+
+输出格式：
+核心知识点：
+1. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+2. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+3. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+4. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+5. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+
+【重点概念】
+提取内容中最关键的8-12个专业术语和核心概念，用逗号分隔
+
+【学习建议】
+提供3-4条具体、可操作的学习方法，包括：
+1. 概念理解技巧
+2. 知识巩固方法
+3. 实践应用建议
+4. 常见问题提示
+
+注意事项：
+- 使用专业、严谨的学术语言
+- 不要提及"高中"、"中学生"、"大学生"等词汇
+- 不要使用任何Markdown格式（如**加粗**、#标题、列表符号等）
+- 必须输出【核心知识点】【重点概念】【学习建议】三个部分，每个部分都不能为空
+- 知识点要模块化，每个知识点独立完整
+- 内容精炼，避免冗长，便于学习和记忆
+
+请直接分析PDF内容并按上述格式输出。`;
 
       const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
         method: "POST",
@@ -104,7 +133,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: `你是一个专业的${subject}知识导师，擅长分析教材内容、总结教材要点、提取核心知识点。`,
+              content: `你是一位专业的${subject}大学课程导师，擅长深入分析专业教材内容，提取核心知识点，提供适合大学生的专业学习建议。请使用专业、严谨的学术语言，不要提及高中或中学生相关内容。`,
             },
             {
               role: "user",
@@ -131,39 +160,32 @@ ${content.length > 5000 ? content.substring(0, 5000) + "..." : content}
 请按照以下结构化要求输出：
 
 【核心知识点】
-请将内容拆解为多个独立的知识点（建议8-15个），每个知识点聚焦一个具体概念或机制，确保内容精炼、重点突出、易于理解和记忆。
-
-每个知识点应包含：
-- 明确定义
-- 核心内容
-- 关键特征
-- 实际意义
+请从内容中提炼最重要的5-8个核心知识点，优先选择具有统摄性、基础性的概念。对于并列关系的知识点（如同类分类、同级结构等），请进行整合归纳，避免重复罗列。每个知识点聚焦一个核心概念或机制，内容精炼、重点突出。
 
 输出格式：
 核心知识点：
-1. 具体知识点1：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
-2. 具体知识点2：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
-3. 具体知识点3：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
-4. 具体知识点4：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
-5. 具体知识点5：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
-...
+1. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+2. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+3. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+4. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
+5. 知识点标题：简要阐述该知识点的核心内容，包括定义、特征、机制或功能等，条理清晰（30-60字）
 
 【重点概念】
-提取最关键的专业术语和核心概念，用逗号分隔
+提取内容中最关键的8-12个专业术语和核心概念，用逗号分隔
 
 【学习建议】
-提供具体、可操作的学习方法，帮助扎实基础：
-- 概念理解技巧：如何准确把握核心概念
-- 知识巩固方法：如何有效记忆和复习
-- 实践应用建议：如何联系实际案例
-- 常见问题提示：学习中需要注意的关键点
+提供3-4条具体、可操作的学习方法，包括：
+1. 概念理解技巧
+2. 知识巩固方法
+3. 实践应用建议
+4. 常见问题提示
 
 注意事项：
 - 使用专业、严谨的学术语言
 - 不要提及"高中"、"中学生"、"大学生"等词汇
 - 不要使用任何Markdown格式（如**加粗**、#标题、列表符号等）
+- 必须输出【核心知识点】【重点概念】【学习建议】三个部分，每个部分都不能为空
 - 知识点要模块化，每个知识点独立完整
-- 覆盖所有重要内容，包括组织结构、生理功能、生化机制等
 - 内容精炼，避免冗长，便于学习和记忆`;
 
       const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
@@ -205,6 +227,10 @@ ${content.length > 5000 ? content.substring(0, 5000) + "..." : content}
     const studyTips: { id: number; title: string; content: string }[] = [];
 
     textContent = textContent.replace(/\*\*/g, "").replace(/#+/g, "").replace(/【|】/g, "");
+    
+    textContent = textContent.replace(/重点概念：/g, "\n重点概念：");
+    textContent = textContent.replace(/学习建议：/g, "\n学习建议：");
+    textContent = textContent.replace(/(\d+[\.\-]\s)/g, "\n$1");
 
     const corePointsMatch = textContent.match(/核心知识点：\s*(.+?)(?=\n重点概念：|\n学习建议：|$)/is);
     const keywordMatch = textContent.match(/重点概念：\s*(.+?)(?=\n学习建议：|$)/is);
@@ -212,7 +238,8 @@ ${content.length > 5000 ? content.substring(0, 5000) + "..." : content}
 
     let pointId = 1;
     if (corePointsMatch) {
-      const pointsText = corePointsMatch[1].trim();
+      let pointsText = corePointsMatch[1].trim();
+      pointsText = pointsText.replace(/(\d+[\.\-]\s)/g, "\n$1");
       const pointLines = pointsText.split("\n").filter(line => line.trim() && line.match(/^\d+[\.\-]\s/));
       pointLines.forEach((line) => {
         const cleaned = line.trim().replace(/^\d+[\.\-]\s*/, "");
@@ -241,11 +268,12 @@ ${content.length > 5000 ? content.substring(0, 5000) + "..." : content}
     }
 
     if (tipMatch) {
-      const tipText = tipMatch[1].trim();
-      const tipLines = tipText.split("\n").filter(line => line.trim() && !line.match(/^\d+[\.\-]\s*/) && !line.match(/^学习建议/));
+      let tipText = tipMatch[1].trim();
+      tipText = tipText.replace(/(\d+[\.\-]\s)/g, "\n$1");
+      const tipLines = tipText.split("\n").filter(line => line.trim() && line.match(/^\d+[\.\-]\s/));
       const tipTitles = ["深度理解", "学习方法", "易错辨析", "拓展延伸", "复习策略"];
       tipLines.forEach((tip, i) => {
-        const cleanedTip = tip.trim().replace(/^[\d\.\-\*]+\s*/, "").replace(/^[-•●]\s*/, "");
+        const cleanedTip = tip.trim().replace(/^\d+[\.\-]\s*/, "").replace(/^[-•●]\s*/, "");
         if (cleanedTip.length > 10) {
           studyTips.push({
             id: i + 1,
@@ -281,3 +309,4 @@ ${content.length > 5000 ? content.substring(0, 5000) + "..." : content}
     );
   }
 }
+
