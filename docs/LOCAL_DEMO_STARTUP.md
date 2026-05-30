@@ -31,6 +31,8 @@ This script will:
 cd backend
 export DATABASE_URL=sqlite:////tmp/biomentor_demo_23cases.db
 python -m uvicorn app.main:app --host 0.0.0.0 --port 9090
+
+> 注意：运行前请先激活后端虚拟环境，或使用已安装项目依赖的 Python。若在 worktree 中没有本地 `.venv-conda`，可以复用主仓库后端虚拟环境中的 Python。
 ```
 
 Expected log output on startup:
