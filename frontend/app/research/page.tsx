@@ -25,6 +25,7 @@ import {
   Send,
   Bot,
   User,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import type { IndustryCase } from "@/data/industryCases";
@@ -39,9 +40,27 @@ import {
 interface Message { role: "user" | "ai"; content: string; }
 
 const phases = [
-  { num: 1, title: "文献调研", icon: <BookOpen className="w-5 h-5" />, description: "AI 帮你检索知识库文献，提取关键信息，构建研究框架" },
-  { num: 2, title: "实验设计", icon: <FlaskConical className="w-5 h-5" />, description: "基于文献调研，AI 辅助设计实验方案、优化参数" },
-  { num: 3, title: "数据分析", icon: <BarChart3 className="w-5 h-5" />, description: "AI 辅助数据处理、可视化展示、报告撰写" },
+  {
+    num: 1,
+    title: "文献调研",
+    icon: <BookOpen className="w-5 h-5" />,
+    description:
+      "基于本地知识库和已接入资料，辅助整理关键词、研究问题和证据线索；当前版本优先使用本地知识库。",
+  },
+  {
+    num: 2,
+    title: "实验设计",
+    icon: <FlaskConical className="w-5 h-5" />,
+    description:
+      "基于研究问题生成高层实验设计框架，包括变量、对照、指标和风险提醒；不生成具体湿实验操作步骤。",
+  },
+  {
+    num: 3,
+    title: "数据分析",
+    icon: <BarChart3 className="w-5 h-5" />,
+    description:
+      "用于后续接入数据上传、统计分析、图表和报告生成；当前版本主要生成数据分析任务建议。",
+  },
 ];
 
 const exampleTopics = [
@@ -67,16 +86,16 @@ const taskTypeIcons: Record<string, React.ReactNode> = {
 
 const PY = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:9090";
 
-function TaskCard({ task, index }: { task: ResearchTaskItem; index: number }) {
-  const [expanded, setExpanded] = useState(false);
+function TaskCard({ task, index, defaultExpanded }: { task: ResearchTaskItem; index: number; defaultExpanded: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
     <div className="rounded-xl bg-white/60 border border-black/5 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-5 flex items-start gap-4 text-left hover:bg-white/30 transition-colors"
+        className="w-full p-4 flex items-start gap-3 text-left hover:bg-white/30 transition-colors"
       >
-        <div className="w-10 h-10 rounded-lg bg-accent-electric/10 flex items-center justify-center shrink-0 mt-0.5">
+        <div className="w-9 h-9 rounded-lg bg-accent-electric/10 flex items-center justify-center shrink-0 mt-0.5">
           {taskTypeIcons[task.type] || <Target className="w-4 h-4" />}
         </div>
         <div className="flex-1 min-w-0">
@@ -84,33 +103,33 @@ function TaskCard({ task, index }: { task: ResearchTaskItem; index: number }) {
             <span className="text-[10px] font-semibold text-accent-electric uppercase tracking-wider bg-accent-electric/10 px-2 py-0.5 rounded-full">
               {taskTypeLabels[task.type] || task.type}
             </span>
-            <span className="text-xs text-brand-muted">任务 {index + 1}</span>
+            <span className="text-[10px] text-brand-muted">任务 {index + 1}</span>
           </div>
           <h3 className="font-display font-bold text-sm text-brand-ink">{task.title}</h3>
           <p className="text-xs text-brand-muted mt-1 line-clamp-2">{task.goal}</p>
         </div>
         <div className="shrink-0 text-brand-muted">
-          {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </div>
       </button>
 
       {expanded && (
-        <div className="px-5 pb-5 border-t border-black/5 pt-4 space-y-4">
+        <div className="px-4 pb-4 border-t border-black/5 pt-4 space-y-3">
           <div>
-            <h4 className="text-xs font-bold text-brand-ink mb-2">任务目标</h4>
+            <h4 className="text-[11px] font-bold text-brand-ink mb-1.5 uppercase tracking-wider">任务目标</h4>
             <p className="text-sm text-brand-muted leading-relaxed">{task.goal}</p>
           </div>
 
           {task.steps && task.steps.length > 0 && (
             <div>
-              <h4 className="text-xs font-bold text-brand-ink mb-2">操作步骤</h4>
+              <h4 className="text-[11px] font-bold text-brand-ink mb-1.5 uppercase tracking-wider">操作步骤</h4>
               <div className="space-y-2">
                 {task.steps.map((step: any, i: number) => {
                   const title = typeof step === "string" ? step : step?.title || "";
                   const desc = typeof step === "string" ? "" : step?.description || "";
                   const duration = typeof step === "string" ? "" : step?.expected_duration || "";
                   return (
-                    <div key={i} className="flex gap-3">
+                    <div key={i} className="flex gap-2.5">
                       <span className="w-5 h-5 rounded-full bg-accent-electric/10 text-accent-electric flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                         {i + 1}
                       </span>
@@ -131,16 +150,16 @@ function TaskCard({ task, index }: { task: ResearchTaskItem; index: number }) {
           )}
 
           <div>
-            <h4 className="text-xs font-bold text-brand-ink mb-2">输出要求</h4>
+            <h4 className="text-[11px] font-bold text-brand-ink mb-1.5 uppercase tracking-wider">输出要求</h4>
             <p className="text-sm text-brand-muted leading-relaxed">{task.output_requirement}</p>
           </div>
 
           {task.suggested_keywords && task.suggested_keywords.length > 0 && (
             <div>
-              <h4 className="text-xs font-bold text-brand-ink mb-2">推荐关键词</h4>
-              <div className="flex flex-wrap gap-1.5">
+              <h4 className="text-[11px] font-bold text-brand-ink mb-1.5 uppercase tracking-wider">推荐关键词</h4>
+              <div className="flex flex-wrap gap-1">
                 {task.suggested_keywords.map((kw, i) => (
-                  <span key={i} className="text-xs text-brand-muted bg-white/60 px-2 py-0.5 rounded-md font-mono">
+                  <span key={i} className="text-[11px] text-brand-muted bg-white/60 px-1.5 py-0.5 rounded-md font-mono">
                     {kw}
                   </span>
                 ))}
@@ -150,7 +169,7 @@ function TaskCard({ task, index }: { task: ResearchTaskItem; index: number }) {
 
           {task.example_outline && (
             <div>
-              <h4 className="text-xs font-bold text-brand-ink mb-2">示例提纲</h4>
+              <h4 className="text-[11px] font-bold text-brand-ink mb-1.5 uppercase tracking-wider">示例提纲</h4>
               <pre className="text-xs text-brand-muted bg-white/40 rounded-lg p-3 font-body leading-relaxed whitespace-pre-wrap">
                 {task.example_outline}
               </pre>
@@ -168,7 +187,7 @@ function DefaultResearchPage() {
   const [result, setResult] = useState<ResearchTaskGenerateResponse | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "欢迎进入科研实战训练营！输入研究主题，我将为你生成结构化科研训练任务。你也可以向我提问。" },
+    { role: "ai", content: "欢迎使用 AI 科研导师！输入研究主题生成训练任务后，你可以向我提问。" },
   ]);
   const [tasks, setTasks] = useState<{ id: string; title: string; difficulty: string; knowledge_point: string; steps: string[] }[]>([]);
   const [papers, setPapers] = useState<{ id: number; title_zh: string; venue: string; year: number; reading_difficulty: string }[]>([]);
@@ -206,7 +225,7 @@ function DefaultResearchPage() {
     setMessages(p => [...p, um]); setChatInput("");
     fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: um.content, context: "科研实战训练" }) })
       .then(r => r.json()).then(d => setMessages(p => [...p, { role: "ai", content: d.success ? d.message : "回答失败" }]))
-      .catch(() => setMessages(p => [...p, { role: "ai", content: "网络错误" }]));
+      .catch(() => setMessages(p => [...p, { role: "ai", content: "网络错误，请稍后重试" }]));
   };
 
   const handleGenerate = useCallback(async () => {
@@ -237,39 +256,39 @@ function DefaultResearchPage() {
     setTopicInput(topic);
   };
 
+  const sourceScopeLabel = (scope: string) => {
+    if (scope.includes("案例库")) return "基于本地案例库生成";
+    if (scope.includes("产业案例")) return "基于当前产业案例生成";
+    if (scope.includes("模板") || scope.includes("template")) return "基于本地模板生成，建议补充文献材料";
+    return scope || "基于本地模板生成，建议补充文献材料";
+  };
+
   return (
     <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20">
-      <div className="max-w-6xl mx-auto pt-8 md:pt-16">
-        <div className="text-center mb-12">
-          <h1 className="font-display font-extrabold text-brand-ink leading-[1.1] tracking-[-0.03em] mb-3" style={{ fontSize: "clamp(28px, 4vw, 48px)" }}>科研实战训练营</h1>
-          <p className="text-brand-muted text-base md:text-lg font-body max-w-xl mx-auto">AI 导师全程陪伴式指导，从文献调研到实验设计再到数据分析</p>
+      <div className="max-w-6xl mx-auto pt-8 md:pt-14">
+
+        {/* ===== Hero ===== */}
+        <div className="text-center mb-10">
+          <h1
+            className="font-display font-extrabold text-brand-ink leading-[1.1] tracking-[-0.03em] mb-3"
+            style={{ fontSize: "clamp(28px, 4vw, 48px)" }}
+          >
+            科研实战训练营
+          </h1>
+          <p className="text-brand-muted text-sm md:text-base font-body max-w-xl mx-auto">
+            输入研究主题，AI 生成结构化科研训练任务
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-          {phases.map(p => (
-            <div key={p.num} className="glass-card rounded-2xl p-6 flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <span className="w-10 h-10 rounded-xl bg-brand-ink/5 flex items-center justify-center text-lg font-bold font-display text-brand-ink">{p.num}</span>
-                <div className="w-9 h-9 rounded-xl bg-brand-ink/5 flex items-center justify-center">{p.icon}</div>
-              </div>
-              <h3 className="font-display text-lg font-bold text-brand-ink mb-2">{p.title}</h3>
-              <p className="text-sm text-brand-muted leading-relaxed flex-1">{p.description}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="glass-card-iridescent rounded-2xl p-6 md:p-8 mb-10">
-          <div className="flex items-center gap-3 mb-6">
+        {/* ===== 第一块：开始科研训练输入区 ===== */}
+        <div className="glass-card-iridescent rounded-2xl p-6 md:p-8 mb-8">
+          <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
               <Target className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-display text-lg font-bold text-brand-ink">
-                开始科研训练
-              </h2>
-              <p className="text-xs text-brand-muted font-body">
-                输入研究主题，AI 为你生成结构化科研训练任务
-              </p>
+              <h2 className="font-display text-lg font-bold text-brand-ink">开始科研训练</h2>
+              <p className="text-xs text-brand-muted font-body">输入研究主题，AI 为你生成结构化科研训练任务</p>
             </div>
           </div>
 
@@ -312,19 +331,232 @@ function DefaultResearchPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-10">
-          <div className="lg:col-span-3 space-y-6">
-            <div className="glass-card rounded-2xl p-6">
-              <h2 className="font-display text-lg font-bold text-brand-ink mb-4 flex items-center gap-2"><BookOpen className="w-5 h-5 text-accent-electric" />知识库文献 ({papers.length} 篇)</h2>
-              {kbLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : kbError ? (
-                <p className="text-sm text-brand-muted py-3">暂无知识库文献</p>
-              ) : papers.length === 0 ? (
-                <p className="text-sm text-brand-muted py-3">暂无知识库文献</p>
-              ) : (
+        {/* ===== 第二块：生成结果区 ===== */}
+        <div className="mb-10">
+          {loading && (
+            <div className="glass-card rounded-2xl p-10 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-accent-electric" />
+              <p className="text-sm text-brand-muted font-body">正在生成科研训练任务...</p>
+            </div>
+          )}
+
+          {!loading && !result && (
+            <div className="glass-card rounded-2xl p-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-accent-electric/5 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-6 h-6 text-brand-faint/60" />
+              </div>
+              <p className="text-sm text-brand-muted font-body max-w-sm mx-auto leading-relaxed">
+                输入主题后，将生成研究问题、背景说明、匹配案例、相关知识点和科研训练任务
+              </p>
+            </div>
+          )}
+
+          {result && !loading && (
+            <div className="space-y-5">
+              {/* 来源提示 */}
+              {(result.source_scope || result.disclaimer) && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50/60 border border-amber-200/50 text-xs text-brand-muted font-body">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>{sourceScopeLabel(result.source_scope)}</span>
+                  <span className="text-brand-faint">· {result.disclaimer?.slice(0, 60) || ""}...</span>
+                </div>
+              )}
+
+              {/* 研究问题与背景 */}
+              <section className="glass-card rounded-2xl p-6 md:p-8">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-base text-brand-ink">研究问题</h2>
+                    <p className="text-[10px] text-brand-muted font-body">AI 生成的核心研究框架</p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-blue-50/40 p-4 mb-4">
+                  <h3 className="font-display font-bold text-lg text-brand-ink mb-2">{result.research_question}</h3>
+                  <p className="text-sm text-brand-muted font-body leading-relaxed">{result.background}</p>
+                </div>
+
+                {result.matched_cases && result.matched_cases.length > 0 && (
+                  <div className="rounded-xl bg-green-50/40 p-4 mb-4">
+                    <h4 className="text-xs font-bold text-brand-ink mb-2">匹配产业案例</h4>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {result.matched_cases.map((c, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/60 border border-black/5 text-xs text-brand-ink cursor-default"
+                          title={c.reason}
+                        >
+                          <Building2 className="w-3 h-3 text-accent-electric" />
+                          {c.title}
+                        </span>
+                      ))}
+                    </div>
+                    <Link
+                      href="/cases"
+                      className="inline-flex items-center gap-1 text-xs text-accent-electric hover:text-accent-electric/80 transition-colors"
+                    >
+                      查看案例库 <ChevronRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
+
+                {result.related_knowledge_points && result.related_knowledge_points.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.related_knowledge_points.map((kp, i) => (
+                      <span key={i} className="badge badge-cyan text-[11px]">{kp}</span>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* 科研训练任务卡片 */}
+              <section className="glass-card rounded-2xl p-6 md:p-8">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center">
+                    <Microscope className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-base text-brand-ink">科研训练任务</h2>
+                    <p className="text-[10px] text-brand-muted font-body">
+                      {result.mode === "case_driven" ? "基于产业案例生成" : "基于研究主题生成"} · {result.tasks.length} 个任务
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {result.tasks.map((task, i) => (
+                    <TaskCard key={i} task={task} index={i} defaultExpanded={i === 0} />
+                  ))}
+                </div>
+              </section>
+
+              {/* 研究引导 + 导师建议 */}
+              <section className="glass-card rounded-2xl p-6 md:p-8">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-cyan to-accent-amber flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-base text-brand-ink">研究引导</h2>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
-                  {papers.map(p => (
-                    <Link key={p.id} href="/explore" className="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5 hover:border-accent-electric/20 transition-all">
-                      <div><p className="text-sm font-semibold text-brand-ink">{p.title_zh}</p><p className="text-xs text-brand-muted">{p.venue} · {p.year} · {p.reading_difficulty}</p></div>
+                  {result.expected_outputs && result.expected_outputs.length > 0 && (
+                    <div className="rounded-xl bg-blue-50/40 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Search className="w-3.5 h-3.5 text-accent-electric" />
+                        <h4 className="text-sm font-bold text-brand-ink">预期输出</h4>
+                      </div>
+                      <ul className="space-y-1">
+                        {result.expected_outputs.map((o, i) => (
+                          <li key={i} className="text-[13px] text-brand-muted flex items-start gap-1.5">
+                            <span className="text-accent-electric mt-1 shrink-0">•</span>
+                            {o}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl bg-purple-50/40 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Lightbulb className="w-3.5 h-3.5 text-accent-amber" />
+                      <h4 className="text-sm font-bold text-brand-ink">AI 科研导师建议</h4>
+                    </div>
+                    <p className="text-[13px] text-brand-muted font-body leading-relaxed whitespace-pre-wrap">
+                      {result.mentor_advice}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 底部操作 */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                <Link
+                  href="/cases"
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/60 border border-black/5 text-sm font-semibold text-brand-ink hover:bg-white hover:border-black/10 transition-all cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  返回产业案例库
+                </Link>
+                <Link
+                  href={`/seminar?topic=${encodeURIComponent(result.seminar_topic || result.research_question)}`}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-accent-electric to-accent-cyan text-sm font-semibold text-white hover:opacity-90 transition-all cursor-pointer flex-1 sm:flex-none"
+                >
+                  <Presentation className="w-4 h-4" />
+                  进入学术研讨
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===== 第三块：训练流程说明 ===== */}
+        <section className="mb-10">
+          <h2 className="section-heading mb-2">科研训练流程</h2>
+          <p className="text-sm text-brand-muted font-body mb-5 max-w-xl">
+            以下描述当前版本各阶段的能力边界和后续规划。
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {phases.map((p) => (
+              <div key={p.num} className="glass-card rounded-2xl p-5 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="w-9 h-9 rounded-xl bg-brand-ink/5 flex items-center justify-center text-base font-bold font-display text-brand-ink">
+                    {p.num}
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-brand-ink/5 flex items-center justify-center">
+                    {p.icon}
+                  </div>
+                </div>
+                <h3 className="font-display text-base font-bold text-brand-ink mb-2">{p.title}</h3>
+                <p className="text-xs text-brand-muted leading-relaxed flex-1">{p.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ===== 第四块：辅助区 ===== */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          {/* 知识库文献 + 科研任务卡 */}
+          <div className="lg:col-span-3 space-y-5">
+            <div className="glass-card rounded-2xl p-5">
+              <h2 className="font-display text-base font-bold text-brand-ink mb-4 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-accent-electric" />
+                知识库文献
+                <span className="text-xs text-brand-muted font-normal ml-1">({papers.length} 篇)</span>
+              </h2>
+              {kbLoading ? (
+                <div className="flex items-center gap-2 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-muted" />
+                  <span className="text-xs text-brand-muted">加载中...</span>
+                </div>
+              ) : kbError || papers.length === 0 ? (
+                <div className="text-center py-6">
+                  <BookOpen className="w-5 h-5 text-brand-faint/30 mx-auto mb-2" />
+                  <p className="text-xs text-brand-muted">知识库暂无文献</p>
+                  <Link href="/explore" className="inline-flex items-center gap-1 text-xs text-accent-electric mt-1 hover:underline">
+                    去知识探索找文献 <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {papers.map((p) => (
+                    <Link
+                      key={p.id}
+                      href="/explore"
+                      className="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5 hover:border-accent-electric/20 transition-all"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-brand-ink">{p.title_zh}</p>
+                        <p className="text-xs text-brand-muted">
+                          {p.venue} · {p.year} · {p.reading_difficulty}
+                        </p>
+                      </div>
                       <ChevronRight className="w-4 h-4 text-brand-faint" />
                     </Link>
                   ))}
@@ -332,24 +564,45 @@ function DefaultResearchPage() {
               )}
             </div>
 
-            <div className="glass-card rounded-2xl p-6">
-              <h2 className="font-display text-lg font-bold text-brand-ink mb-4 flex items-center gap-2"><Target className="w-5 h-5 text-accent-cyan" />科研任务卡</h2>
-              {kbLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : kbError ? (
-                <p className="text-sm text-brand-muted py-3">暂无任务卡</p>
-              ) : tasks.length === 0 ? (
-                <p className="text-sm text-brand-muted py-3">暂无任务卡</p>
+            <div className="glass-card rounded-2xl p-5">
+              <h2 className="font-display text-base font-bold text-brand-ink mb-4 flex items-center gap-2">
+                <Target className="w-4 h-4 text-accent-cyan" />
+                科研任务卡
+                <span className="text-xs text-brand-muted font-normal ml-1">({tasks.length} 个)</span>
+              </h2>
+              {kbLoading ? (
+                <div className="flex items-center gap-2 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-muted" />
+                  <span className="text-xs text-brand-muted">加载中...</span>
+                </div>
+              ) : kbError || tasks.length === 0 ? (
+                <div className="text-center py-6">
+                  <Target className="w-5 h-5 text-brand-faint/30 mx-auto mb-2" />
+                  <p className="text-xs text-brand-muted">暂无任务卡</p>
+                  <p className="text-[10px] text-brand-faint mt-0.5">生成科研任务后将在此显示</p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {tasks.map(t => (
-                    <div key={t.id} className="p-4 rounded-xl bg-white/40 border border-black/5 hover:border-accent-cyan/20 transition-all">
-                      <div className="flex items-center justify-between mb-2">
+                <div className="space-y-2">
+                  {tasks.map((t) => (
+                    <div key={t.id} className="p-3 rounded-xl bg-white/40 border border-black/5 hover:border-accent-cyan/20 transition-all">
+                      <div className="flex items-center justify-between mb-1.5">
                         <h3 className="text-sm font-semibold text-brand-ink">{t.title}</h3>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.difficulty==="easy"?"bg-green-100 text-green-700":t.difficulty==="hard"?"bg-red-100 text-red-700":"bg-blue-100 text-blue-700"}`}>
-                          {t.difficulty==="easy"?"入门":t.difficulty==="hard"?"挑战":"进阶"}
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            t.difficulty === "easy"
+                              ? "bg-green-100 text-green-700"
+                              : t.difficulty === "hard"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {t.difficulty === "easy" ? "入门" : t.difficulty === "hard" ? "挑战" : "进阶"}
                         </span>
                       </div>
                       <p className="text-xs text-brand-muted">知识点：{t.knowledge_point}</p>
-                      {t.steps?.length>0 && <p className="text-xs text-brand-faint mt-1">步骤：{t.steps.slice(0,3).join(" → ")}</p>}
+                      {t.steps?.length > 0 && (
+                        <p className="text-[11px] text-brand-faint mt-1">步骤：{t.steps.slice(0, 3).join(" → ")}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -357,177 +610,80 @@ function DefaultResearchPage() {
             </div>
           </div>
 
+          {/* AI 科研导师 */}
           <div className="lg:col-span-2">
-            <div className="glass-card rounded-2xl p-5 flex flex-col h-full min-h-[500px] sticky top-[calc(var(--nav-height)+2rem)]">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center"><Sparkles className="w-4 h-4 text-white" /></div>
-                <div><h3 className="font-display font-bold text-sm text-brand-ink">AI 科研导师</h3><p className="text-xs text-brand-muted">实时指导与答疑</p></div>
+            <div className="glass-card rounded-2xl p-5 flex flex-col sticky top-[calc(var(--nav-height)+1.5rem)]">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-sm text-brand-ink">AI 科研导师</h3>
+                  <p className="text-[10px] text-brand-muted">实时指导与答疑</p>
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1 max-h-[400px]">
-                {messages.map((msg, i) => (
-                  <div key={i} className={`flex gap-3 ${msg.role==="user"?"flex-row-reverse":""}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${msg.role==="ai"?"bg-gradient-to-br from-accent-amber to-accent-electric":"bg-brand-ink"}`}>
-                      {msg.role==="ai"?<Bot className="w-3.5 h-3.5 text-white" />:<User className="w-3.5 h-3.5 text-white" />}
+
+              <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-1 max-h-[320px]" style={{ scrollbarWidth: "thin" }}>
+                {messages.length === 1 && messages[0].role === "ai" ? (
+                  <div className="flex gap-3">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center shrink-0">
+                      <Bot className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${msg.role==="ai"?"bg-white/60 border border-black/5 rounded-tl-md text-brand-ink":"bg-brand-ink text-white rounded-tr-md"}`}>{msg.content}</div>
+                    <div className="max-w-[85%] px-4 py-2.5 rounded-2xl bg-white/60 border border-black/5 rounded-tl-md text-sm text-brand-muted leading-relaxed">
+                      {messages[0].content}
+                    </div>
                   </div>
-                ))}
+                ) : (
+                  messages.map((msg, i) => (
+                    <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                          msg.role === "ai"
+                            ? "bg-gradient-to-br from-accent-amber to-accent-electric"
+                            : "bg-brand-ink"
+                        }`}
+                      >
+                        {msg.role === "ai" ? (
+                          <Bot className="w-3.5 h-3.5 text-white" />
+                        ) : (
+                          <User className="w-3.5 h-3.5 text-white" />
+                        )}
+                      </div>
+                      <div
+                        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                          msg.role === "ai"
+                            ? "bg-white/60 border border-black/5 rounded-tl-md text-brand-ink"
+                            : "bg-brand-ink text-white rounded-tr-md"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))
+                )}
                 <div ref={chatEndRef} />
               </div>
+
               <div className="flex gap-2">
-                <input type="text" value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSendChat()} placeholder="向AI科研导师提问..." className="flex-1 h-10 px-4 rounded-xl bg-white/40 border border-black/5 text-sm outline-none" />
-                <button onClick={handleSendChat} disabled={!chatInput.trim()} className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand-ink text-white disabled:opacity-30"><Send className="w-4 h-4" /></button>
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendChat()}
+                  placeholder="向AI导师提问..."
+                  className="flex-1 h-10 px-3.5 rounded-xl bg-white/40 border border-black/5 text-sm outline-none focus:border-accent-electric/20 transition-colors"
+                />
+                <button
+                  onClick={handleSendChat}
+                  disabled={!chatInput.trim()}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand-ink text-white disabled:opacity-30 transition-opacity cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        <div className="text-center mb-10">
-          <Link href="/explore" className="btn-hero-secondary cursor-pointer inline-flex"><Lightbulb className="w-4 h-4" /> 去知识探索找文献<ArrowRight className="w-4 h-4" /></Link>
-        </div>
-
-        {result && (
-          <div className="space-y-6">
-            <section className="glass-card rounded-2xl p-6 md:p-8">
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
-                  <Building2 className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div>
-                  <h2 className="font-display font-bold text-base text-brand-ink">
-                    研究问题
-                  </h2>
-                  <p className="text-xs text-brand-muted font-body">AI 生成的核心研究框架</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-blue-50/40 p-4 mb-4">
-                <h3 className="font-display font-bold text-lg text-brand-ink mb-2">{result.research_question}</h3>
-                <p className="text-sm text-brand-muted font-body leading-relaxed">{result.background}</p>
-              </div>
-
-              {result.matched_cases && result.matched_cases.length > 0 && (
-                <div className="rounded-xl bg-green-50/40 p-4 mb-4">
-                  <h4 className="text-xs font-bold text-brand-ink mb-2">匹配产业案例</h4>
-                  <div className="space-y-2">
-                    {result.matched_cases.map((c, i) => (
-                      <Link
-                        key={i}
-                        href={`/research?caseId=${c.case_key}`}
-                        className="flex items-center gap-2 text-sm text-accent-electric hover:underline"
-                      >
-                        <ChevronRight className="w-3 h-3" />
-                        {c.title}（{c.case_key}）
-                        <span className="text-xs text-brand-muted">— {c.reason}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {result.related_knowledge_points && result.related_knowledge_points.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {result.related_knowledge_points.map((kp, i) => (
-                    <span key={i} className="badge badge-cyan text-xs">{kp}</span>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="glass-card rounded-2xl p-6 md:p-8">
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center">
-                  <Microscope className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div>
-                  <h2 className="font-display font-bold text-base text-brand-ink">
-                    科研训练任务
-                  </h2>
-                  <p className="text-xs text-brand-muted font-body">
-                    {result.mode === "case_driven" ? "基于产业案例生成" : "基于研究主题生成"}{" "}
-                    · {result.tasks.length} 个任务
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {result.tasks.map((task, i) => (
-                  <TaskCard key={i} task={task} index={i} />
-                ))}
-              </div>
-            </section>
-
-            <section className="glass-card rounded-2xl p-6 md:p-8">
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-cyan to-accent-amber flex items-center justify-center">
-                  <TrendingUp className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div>
-                  <h2 className="font-display font-bold text-base text-brand-ink">
-                    研究引导
-                  </h2>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {result.expected_outputs && result.expected_outputs.length > 0 && (
-                  <div className="rounded-xl bg-blue-50/40 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Search className="w-3.5 h-3.5 text-accent-electric" />
-                      <h4 className="text-sm font-bold text-brand-ink">预期输出</h4>
-                    </div>
-                    <ul className="space-y-1">
-                      {result.expected_outputs.map((o, i) => (
-                        <li key={i} className="text-[13px] text-brand-muted flex items-start gap-1.5">
-                          <span className="text-accent-electric mt-1 shrink-0">•</span>
-                          {o}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="rounded-xl bg-purple-50/40 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lightbulb className="w-3.5 h-3.5 text-accent-amber" />
-                    <h4 className="text-sm font-bold text-brand-ink">AI 科研导师建议</h4>
-                  </div>
-                  <p className="text-[13px] text-brand-muted font-body leading-relaxed whitespace-pre-wrap">
-                    {result.mentor_advice}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-amber-50/40 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                    <h4 className="text-sm font-bold text-brand-ink">免责声明</h4>
-                  </div>
-                  <p className="text-[12px] text-brand-muted font-body leading-relaxed">
-                    {result.disclaimer}
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-              <Link
-                href="/cases"
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/60 border border-black/5 text-sm font-semibold text-brand-ink hover:bg-white hover:border-black/10 transition-all cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                返回产业案例库
-              </Link>
-              <Link
-                href={`/seminar?topic=${encodeURIComponent(result.seminar_topic || result.research_question)}`}
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-accent-electric to-accent-cyan text-sm font-semibold text-white hover:opacity-90 transition-all cursor-pointer flex-1 sm:flex-none"
-              >
-                <Presentation className="w-4 h-4" />
-                进入学术研讨
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -571,6 +727,13 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
     return () => { cancelled = true; };
   }, [caseData, caseKey]);
 
+  const sourceScopeLabel = (scope: string) => {
+    if (scope.includes("案例库")) return "基于本地案例库生成";
+    if (scope.includes("产业案例")) return "基于当前产业案例生成";
+    if (scope.includes("模板") || scope.includes("template")) return "基于本地模板生成，建议补充文献材料";
+    return scope || "基于本地模板生成，建议补充文献材料";
+  };
+
   return (
     <div className="min-h-screen pt-[var(--nav-height)] px-6 md:px-10 pb-20">
       <div className="max-w-5xl mx-auto pt-8 md:pt-14">
@@ -584,27 +747,21 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
         >
           {caseData.title}
         </h1>
-        <p className="text-brand-muted text-sm md:text-base font-body mb-10">
-          {caseData.subtitle}
-        </p>
+        <p className="text-brand-muted text-sm md:text-base font-body mb-10">{caseData.subtitle}</p>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <section className="glass-card rounded-2xl p-6 md:p-8">
-            <div className="flex items-center gap-2.5 mb-5">
+            <div className="flex items-center gap-2.5 mb-4">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-electric to-accent-cyan flex items-center justify-center">
-                <Building2 className="w-4.5 h-4.5 text-white" />
+                <Building2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="font-display font-bold text-base text-brand-ink">
-                  当前科研案例
-                </h2>
-                <p className="text-xs text-brand-muted font-body">
-                  产业案例基础信息与核心问题
-                </p>
+                <h2 className="font-display font-bold text-base text-brand-ink">当前科研案例</h2>
+                <p className="text-xs text-brand-muted font-body">产业案例基础信息与核心问题</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="rounded-xl bg-blue-50/50 p-3">
                 <p className="text-[10px] font-bold text-brand-faint uppercase tracking-wider mb-0.5">产业方向</p>
                 <p className="text-sm font-semibold text-brand-ink">{caseData.industryDirection}</p>
@@ -630,15 +787,13 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
           </section>
 
           <section className="glass-card rounded-2xl p-6 md:p-8">
-            <div className="flex items-center gap-2.5 mb-4">
+            <div className="flex items-center gap-2.5 mb-3">
               <BookOpen className="w-4 h-4 text-accent-cyan" />
-              <h2 className="font-display font-bold text-base text-brand-ink">
-                相关知识点
-              </h2>
+              <h2 className="font-display font-bold text-base text-brand-ink">相关知识点</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {caseData.relatedKnowledgePoints.map((kp, i) => (
-                <span key={i} className="badge badge-cyan text-xs">{kp}</span>
+                <span key={i} className="badge badge-cyan text-[11px]">{kp}</span>
               ))}
             </div>
           </section>
@@ -652,44 +807,45 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
 
           {result && !loading && (
             <>
+              {(result.source_scope || result.disclaimer) && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50/60 border border-amber-200/50 text-xs text-brand-muted font-body">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>{sourceScopeLabel(result.source_scope)}</span>
+                </div>
+              )}
+
               <section className="glass-card rounded-2xl p-6 md:p-8">
-                <div className="flex items-center gap-2.5 mb-5">
+                <div className="flex items-center gap-2.5 mb-4">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-amber to-accent-electric flex items-center justify-center">
-                    <Microscope className="w-4.5 h-4.5 text-white" />
+                    <Microscope className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="font-display font-bold text-base text-brand-ink">
-                      科研训练任务
-                    </h2>
+                    <h2 className="font-display font-bold text-base text-brand-ink">科研训练任务</h2>
                     <p className="text-xs text-brand-muted font-body">
                       基于案例核心问题与知识点生成 · {result.tasks.length} 个任务
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-3 mb-5">
+                <div className="space-y-2.5 mb-4">
                   {result.tasks.map((task, i) => (
-                    <TaskCard key={i} task={task} index={i} />
+                    <TaskCard key={i} task={task} index={i} defaultExpanded={i === 0} />
                   ))}
                 </div>
               </section>
 
               <section className="glass-card rounded-2xl p-6 md:p-8">
-                <div className="flex items-center gap-2.5 mb-5">
+                <div className="flex items-center gap-2.5 mb-4">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-cyan to-accent-amber flex items-center justify-center">
-                    <TrendingUp className="w-4.5 h-4.5 text-white" />
+                    <TrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="font-display font-bold text-base text-brand-ink">
-                      研究引导
-                    </h2>
-                    <p className="text-xs text-brand-muted font-body">
-                      基于案例字段生成的研究框架
-                    </p>
+                    <h2 className="font-display font-bold text-base text-brand-ink">研究引导</h2>
+                    <p className="text-xs text-brand-muted font-body">基于案例字段生成的研究框架</p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="rounded-xl bg-blue-50/40 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Search className="w-3.5 h-3.5 text-accent-electric" />
@@ -708,7 +864,9 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {result.related_knowledge_points.map((kw, i) => (
-                        <span key={i} className="text-xs text-brand-muted bg-white/60 px-2 py-0.5 rounded-md font-mono">{kw}</span>
+                        <span key={i} className="text-xs text-brand-muted bg-white/60 px-2 py-0.5 rounded-md font-mono">
+                          {kw}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -739,22 +897,12 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
                       {result.mentor_advice}
                     </p>
                   </div>
-
-                  <div className="rounded-xl bg-amber-50/40 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                      <h4 className="text-sm font-bold text-brand-ink">免责声明</h4>
-                    </div>
-                    <p className="text-[12px] text-brand-muted font-body leading-relaxed">
-                      {result.disclaimer}
-                    </p>
-                  </div>
                 </div>
               </section>
             </>
           )}
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
             <Link
               href="/cases"
               className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/60 border border-black/5 text-sm font-semibold text-brand-ink hover:bg-white hover:border-black/10 transition-all cursor-pointer"
@@ -784,9 +932,7 @@ function InvalidCasePage() {
         <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-5">
           <AlertTriangle className="w-8 h-8 text-amber-500" />
         </div>
-        <h2 className="font-display font-bold text-xl text-brand-ink mb-2">
-          未找到对应产业案例
-        </h2>
+        <h2 className="font-display font-bold text-xl text-brand-ink mb-2">未找到对应产业案例</h2>
         <p className="text-sm text-brand-muted font-body leading-relaxed mb-6">
           该案例可能已被移除或 ID 无效。您可以返回产业案例库重新选择感兴趣的案例进行科研实战训练。
         </p>
