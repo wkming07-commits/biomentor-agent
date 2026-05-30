@@ -73,22 +73,25 @@ def build_defense_outline(paper_ids: list[int], db: Session = Depends(get_db)):
 @router.get("/tasks")
 def list_research_tasks(direction: str | None = Query(None), db: Session = Depends(get_db)):
     """Return research tasks from the knowledge base."""
-    from app.models import KnowledgePoint
-    # Research tasks are embedded in KnowledgePoint learning_path metadata
-    kps = db.query(KnowledgePoint).filter(KnowledgePoint.category.in_(["实验方法", "前沿技术", "AI模型"])).all()
+    from app.models import KnowledgePoint, ResearchPaper
+    kps = db.query(KnowledgePoint).filter(KnowledgePoint.category.in_(["实验方法", "前沿技术", "AI模型", "应用方向", "基础概念"])).all()
 
     tasks = []
     for kp in kps:
-        if kp.learning_path:
-            tasks.append({
-                "id": f"task-kp-{kp.id}",
-                "title": f"{kp.name} 实验探究",
-                "difficulty": kp.difficulty.value if kp.difficulty else "medium",
-                "scenario": kp.definition,
-                "knowledge_point": kp.name,
-                "category": kp.category,
-                "steps": kp.learning_path if isinstance(kp.learning_path, list) else [],
-            })
+        steps = kp.learning_path if isinstance(kp.learning_path, list) and len(kp.learning_path) > 0 else _default_steps(kp.name, kp.category)
+        related_papers = db.query(ResearchPaper).filter(
+            ResearchPaper.title_zh.contains(kp.name) | ResearchPaper.direction.contains(kp.name)
+        ).limit(2).all()
+        tasks.append({
+            "id": f"task-kp-{kp.id}",
+            "title": f"{kp.name} 实验探究",
+            "difficulty": kp.difficulty.value if kp.difficulty else "medium",
+            "scenario": kp.definition or f"围绕{kp.name}设计一个可操作的实验方案",
+            "knowledge_point": kp.name,
+            "category": kp.category,
+            "steps": steps,
+            "related_papers": [{"id": p.id, "title_zh": p.title_zh} for p in related_papers],
+        })
 
     return tasks
 
@@ -99,7 +102,6 @@ def generate_task(data: ResearchTaskGenerateRequest, db: Session = Depends(get_d
         raise HTTPException(400, "mode must be 'independent' or 'case_driven'")
     if data.mode == "case_driven" and not data.case_key:
         raise HTTPException(400, "case_key is required for case_driven mode")
-
     service = ResearchService(db)
     try:
         return service.generate_task(data.topic, data.case_key, data.mode)
@@ -107,3 +109,19 @@ def generate_task(data: ResearchTaskGenerateRequest, db: Session = Depends(get_d
         raise HTTPException(404, str(e))
     except Exception as e:
         raise HTTPException(500, f"Task generation failed: {e}")
+
+
+def _default_steps(name: str, category: str) -> list[str]:
+    """Generate default steps for knowledge points without explicit learning paths."""
+    base = [
+        f"文献调研：检索{name}相关的最新研究进展",
+        f"概念梳理：理解{name}的核心原理和关键机制",
+        f"实验设计：基于{name}设计验证性实验方案",
+        f"数据分析：对实验结果进行统计分析和可视化",
+        f"报告撰写：整理研究发现，撰写实验报告或综述",
+    ]
+    if category == "实验方法":
+        base.insert(2, f"方法实操：在实验室或模拟环境中操作{name}相关技术")
+    elif category == "AI模型":
+        base.insert(2, f"模型应用：使用{name}进行数据分析和预测")
+    return base
