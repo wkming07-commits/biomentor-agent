@@ -48,6 +48,28 @@ class IndustryCaseService:
             IndustryCase.background.contains(lower) | IndustryCase.problem_statement.contains(lower)
         ).limit(limit).all()
 
+    def get_case_by_key(self, case_key: str) -> IndustryCase | None:
+        return self.db.query(IndustryCase).filter(IndustryCase.case_key == case_key).first() if case_key else None
+
+    def get_case_answer_by_key(self, case_key: str | None, query: str) -> dict[str, Any]:
+        """Answer query using a specific case if provided, otherwise general answer."""
+        if case_key:
+            case = self.get_case_by_key(case_key)
+            if case:
+                return self.get_case_answer(case.id, query)
+        return self._general_answer(query)
+
+    def _general_answer(self, query: str) -> dict[str, Any]:
+        """Fallback general answer when no specific case is provided."""
+        q = query.lower()
+        if any(k in q for k in ["crispr", "基因编辑"]):
+            return {"query": query, "answer": "CRISPR基因编辑技术可用于基因治疗（如镰刀细胞贫血的CTX001疗法）、作物改良（抗病品种培育）和功能基因组学研究。在产业应用中需要注意脱靶效应和递送效率等关键技术挑战。", "sources": []}
+        if any(k in q for k in ["凋亡", "apoptosis"]):
+            return {"query": query, "answer": "细胞凋亡是程序性细胞死亡的主要形式，Bcl-2家族蛋白（Bax/Bcl-2）和caspase家族在其中发挥核心作用。BCL-2抑制剂Venetoclax已成功用于血液肿瘤治疗。", "sources": []}
+        if any(k in q for k in ["mrna", "lnp", "递送"]):
+            return {"query": query, "answer": "LNP（脂质纳米颗粒）是mRNA药物递送的关键技术。通过AI多目标优化，可实现组织选择性递送，突破传统LNP肝脏偏向性的局限。", "sources": []}
+        return {"query": query, "answer": f"关于「{query}」的相关信息，建议从知识库中的产业案例和科研文献中查找。BioMentor知识库已收录12篇前沿文献和5个产业案例。", "sources": []}
+
     # ── LLM-Powered Case Q&A / Tutoring ──────────────────────────
 
     def get_case_answer(self, case_id: int, query: str) -> dict[str, Any]:
