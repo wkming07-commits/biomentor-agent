@@ -230,6 +230,8 @@ class IndustryCaseOut(BaseModel):
     subtitle: str = ""
     industry_direction: str = ""
     company: str = ""
+    category: str = ""
+    real_product_or_technology: str = ""
     background: str = ""
     core_problem: str = ""
     problem_statement: str = ""
@@ -252,6 +254,7 @@ class IndustryCaseOut(BaseModel):
     application_scenario: str = ""
     display_focus: str = ""
     migration_path: dict[str, list[str]] = {}
+    source_urls: list[str] = []
     is_featured: bool = False
 
     model_config = {"from_attributes": True}
@@ -263,6 +266,8 @@ class IndustryCaseCreate(BaseModel):
     subtitle: str = ""
     industry_direction: str = ""
     company: str = ""
+    category: str = ""
+    real_product_or_technology: str = ""
     background: str = ""
     core_problem: str = ""
     research_foundation: str = ""
@@ -277,6 +282,7 @@ class IndustryCaseCreate(BaseModel):
     application_scenario: str = ""
     display_focus: str = ""
     migration_path: dict[str, list[str]] = {}
+    source_urls: list[str] = []
     references: list[dict[str, str]] = []
 
 

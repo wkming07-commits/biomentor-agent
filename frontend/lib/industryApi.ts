@@ -22,6 +22,8 @@ export interface ApiIndustryCase {
   title: string;
   subtitle: string;
   industry_direction: string;
+  category: string;
+  real_product_or_technology: string;
   background: string;
   core_problem: string;
   research_foundation: string;
@@ -40,6 +42,7 @@ export interface ApiIndustryCase {
     industryApplication: string[];
   };
   references: Array<{ title: string; url: string; type: string }>;
+  source_urls: string[];
 }
 
 function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
@@ -47,6 +50,8 @@ function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
     id: apiCase.case_key,
     title: apiCase.title,
     subtitle: apiCase.subtitle,
+    category: apiCase.category || "",
+    realProductOrTechnology: apiCase.real_product_or_technology || "",
     relatedKnowledgePoints: apiCase.knowledge_points,
     industryDirection: apiCase.industry_direction,
     coreProblem: apiCase.core_problem,
@@ -56,7 +61,7 @@ function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
     recommendedKeywords: apiCase.recommended_keywords,
     linkedResearchTask: apiCase.linked_research_task,
     evidenceLevel: apiCase.evidence_level === "high" ? "高" : apiCase.evidence_level === "medium" ? "中" : "发展中",
-    sourceType: apiCase.source_type === "academic" ? "学术文献" : apiCase.source_type === "clinical_trial" ? "临床试验" : apiCase.source_type === "patent" ? "专利文献" : "产业报告",
+    sourceType: apiCase.source_type === "academic" ? "学术文献" : apiCase.source_type === "clinical_trial" ? "临床试验" : apiCase.source_type === "patent" ? "专利文献" : apiCase.source_type === "regulatory" ? "监管文件" : "产业报告",
     background: apiCase.background,
     applicationScenario: apiCase.application_scenario,
     displayFocus: apiCase.display_focus,
@@ -66,6 +71,7 @@ function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
       url: r.url,
       type: r.type as "FDA" | "PubMed" | "DOI" | "NCI" | "Label" | "Review" | "Other",
     })),
+    sourceUrls: apiCase.source_urls || [],
   };
 }
 
@@ -87,8 +93,10 @@ export async function searchIndustryCases(query: string): Promise<IndustryCase[]
     (c) =>
       c.title.toLowerCase().includes(lower) ||
       c.industryDirection.toLowerCase().includes(lower) ||
+      c.category.toLowerCase().includes(lower) ||
       c.relatedKnowledgePoints.some((k) => k.toLowerCase().includes(lower)) ||
-      c.recommendedKeywords.some((k) => k.toLowerCase().includes(lower)),
+      c.recommendedKeywords.some((k) => k.toLowerCase().includes(lower)) ||
+      c.coreProblem.toLowerCase().includes(lower),
   );
 }
 

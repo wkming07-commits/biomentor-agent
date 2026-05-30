@@ -204,28 +204,39 @@ class ResearchService:
         matched: list[dict[str, str]] = []
 
         topic_lower = topic.lower()
-        cases = self.db.query(IndustryCase).limit(20).all()
+        topic_keywords = [w.strip().lower() for w in topic.replace("？", " ").replace("?", " ").replace("，", " ").split() if len(w.strip()) >= 2]
+        cases = self.db.query(IndustryCase).all()
         scores: list[tuple[float, IndustryCase]] = []
 
         for case in cases:
             score = 0.0
-            title = case.title or ""
-            kps = case.knowledge_points if isinstance(case.knowledge_points, list) else []
-            kws = case.recommended_keywords if isinstance(case.recommended_keywords, list) else []
-            direction = case.industry_direction or ""
-            core = case.core_problem or case.problem_statement or ""
+            title = (case.title or "").lower()
+            kps = [k.lower() for k in (case.knowledge_points or []) if isinstance(k, str)]
+            kws = [k.lower() for k in (case.recommended_keywords or []) if isinstance(k, str)]
+            direction = (case.industry_direction or "").lower()
+            core = (case.core_problem or case.problem_statement or "").lower()
+            category = (case.category or "").lower()
 
-            if any(w in topic_lower for w in title.lower().split() if len(w) >= 2):
+            if any(w in title for w in topic_keywords if len(w) >= 2):
                 score += 3
             for kp in kps:
-                if isinstance(kp, str) and kp.lower() in topic_lower:
+                if kp in topic_lower:
                     score += 1.5
             for kw in kws:
-                if isinstance(kw, str) and kw.lower() in topic_lower:
+                if kw in topic_lower:
                     score += 1.5
-            if direction and direction.lower() in topic_lower:
-                score += 2
-            if core and any(w in topic_lower for w in core.lower().split() if len(w) >= 4):
+            for tk in topic_keywords:
+                for kp in kps:
+                    if tk in kp:
+                        score += 1.5
+                for kw in kws:
+                    if tk in kw:
+                        score += 1.5
+                if tk in direction:
+                    score += 2
+                if tk in category:
+                    score += 1
+            if core and any(w in core for w in topic_keywords if len(w) >= 3):
                 score += 2
 
             if score > 0:

@@ -7,7 +7,9 @@ into real database records so the backend is immediately usable after startup.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -344,142 +346,50 @@ def _seed_papers(db: Session):
 
 
 def _seed_industry_cases(db: Session):
-    cases = [
-        {
-            "id": 1, "case_key": "case-001",
-            "title": "细胞凋亡与抗肿瘤药物研发",
-            "subtitle": "从线粒体凋亡通路到靶向抗癌药物",
-            "industry_direction": "药物研发",
-            "background": "细胞凋亡（apoptosis）是机体维持组织稳态的核心程序性死亡机制。线粒体途径（内源性凋亡通路）受Bcl-2家族蛋白精确调控：抗凋亡蛋白（BCL-2、BCL-XL、MCL-1）与促凋亡蛋白（BAX、BAK）之间的动态平衡决定细胞命运。在多种血液肿瘤中，肿瘤细胞通过高表达BCL-2来逃避凋亡，形成对BCL-2的「凋亡成瘾」。这一发现使BCL-2成为极具吸引力的抗肿瘤靶点。",
-            "core_problem": "如何基于凋亡信号通路开发选择性诱导肿瘤细胞凋亡的小分子药物",
-            "research_foundation": "线粒体外膜通透化（MOMP）机制研究揭示Bcl-2家族蛋白在凋亡调控中的核心作用，抗凋亡蛋白BCL-2、BCL-XL、MCL-1通过结合并抑制促凋亡效应蛋白BAX/BAK维持线粒体完整性。结构生物学解析了BH3结构域与BCL-2疏水沟槽的结合模式，为BH3模拟物设计提供了分子蓝图。",
-            "application_value": "Venetoclax（ABT-199）作为首个获批的BCL-2选择性抑制剂，已用于慢性淋巴细胞白血病（CLL）和急性髓系白血病（AML）治疗，单药及联合方案均显示显著疗效，全球年销售额超20亿美元。",
-            "knowledge_points": ["细胞凋亡", "caspase家族", "线粒体途径", "Bcl-2家族", "p53信号通路"],
-            "required_abilities": ["机制解释能力", "实验设计能力", "数据分析能力"],
-            "recommended_keywords": ["apoptosis", "BH3 mimetics", "mitochondrial priming", "drug resistance", "combination therapy"],
-            "linked_research_task": "BH3 profiling实验设计",
-            "evidence_level": "high",
-            "source_type": "academic",
-            "application_scenario": "Venetoclax研发历程是结构生物学驱动药物设计的经典范式：从Abbott实验室的片段筛选获得初始苗头化合物，通过基于NMR和X射线晶体学的结构优化逐步提高亲和力和选择性，最终研发出口服生物利用度良好的BCL-2选择性抑制剂。",
-            "display_focus": "BCL-2蛋白结构解析 → BH3模拟物分子设计 → 临床试验与伴随诊断",
-            "migration_path": {
-                "textbookBase": ["细胞凋亡的分子机制", "线粒体结构与功能", "蛋白质-蛋白质相互作用"],
-                "researchFrontier": ["BCL-2家族蛋白结构解析", "BH3模拟物药物设计", "凋亡启动概念"],
-                "industryApplication": ["Venetoclax(ABT-199)获FDA批准", "BH3 profiling伴随诊断", "BCL-2/MCL-1双靶联合治疗"],
-            },
-            "references": [
-                {"title": "Venetoclax FDA Approval (CLL)", "url": "https://www.fda.gov/drugs/resources-information-approved-drugs/venetoclax", "type": "FDA"},
-                {"title": "ABT-199, a potent and selective BCL-2 inhibitor", "url": "https://doi.org/10.1038/nm.3048", "type": "DOI"},
-                {"title": "Mitochondrial priming and BH3 profiling in cancer therapy", "url": "https://pubmed.ncbi.nlm.nih.gov/27767093/", "type": "PubMed"},
-            ],
-            "difficulty": "medium", "is_featured": True,
-        },
-        {
-            "id": 2, "case_key": "case-002",
-            "title": "CAR-T 细胞治疗与肿瘤免疫",
-            "subtitle": "从T细胞识别机制到工程化免疫细胞药物",
-            "industry_direction": "细胞治疗",
-            "background": "T细胞通过TCR识别MHC呈递的抗原来杀伤靶细胞，但肿瘤细胞常下调MHC逃避免疫识别。CAR-T技术通过基因工程将抗体衍生的单链可变区（scFv）与T细胞激活信号域融合，使T细胞不依赖MHC即可识别肿瘤表面抗原。CD19因在B细胞谱系中特异性高表达而成为首个成功的CAR-T靶点。",
-            "core_problem": "如何设计和制备嵌合抗原受体T细胞（CAR-T）实现血液肿瘤的精准杀伤，并突破实体瘤治疗瓶颈",
-            "research_foundation": "CAR结构从第一代（仅CD3ζ信号域）演进到第四代（TRUCK/装甲CAR），共刺激域（CD28、4-1BB）的引入显著增强了T细胞增殖和持久性。CAR-T制备涉及患者T细胞采集、体外激活、慢病毒载体转导和扩增、回输前清淋预处理等关键工艺环节。",
-            "application_value": "CD19 CAR-T产品（Kymriah、Yescarta、Tecartus、Breyanzi）已被FDA批准用于多种B细胞恶性肿瘤，总体缓解率达70-90%。BCMA CAR-T用于多发性骨髓瘤。全球CAR-T市场预计2030年超200亿美元。",
-            "knowledge_points": ["T细胞受体", "免疫突触", "CAR结构域设计", "细胞因子信号", "肿瘤免疫微环境"],
-            "required_abilities": ["机制解释能力", "实验设计能力", "证据判断能力"],
-            "recommended_keywords": ["CAR-T", "immunotherapy", "chimeric antigen receptor", "CRS", "solid tumor", "allogeneic"],
-            "linked_research_task": "CAR结构域功能分析与优化",
-            "evidence_level": "high",
-            "source_type": "clinical_trial",
-            "application_scenario": "CAR-T治疗流程：患者外周血分离T细胞 → 体外T细胞激活（抗CD3/CD28磁珠）→ 慢病毒载体转导CAR基因 → 体外扩增至治疗剂量 → 清淋预处理 → CAR-T回输 → 监测细胞因子释放综合征（CRS）和神经毒性。",
-            "display_focus": "CAR结构域工程 → 细胞制备工艺 → 临床疗效与安全性管理",
-            "migration_path": {
-                "textbookBase": ["T细胞活化与信号转导", "抗原-抗体特异性识别", "细胞培养与基因转导"],
-                "researchFrontier": ["CAR结构域迭代优化(CD28/4-1BB)", "CRS机制与IL-6阻断策略", "实体瘤微环境免疫逃逸"],
-                "industryApplication": ["CD19 CAR-T(Kymriah/Yescarta)", "BCMA CAR-T治疗多发性骨髓瘤", "通用型CAR-T与CAR-NK研发"],
-            },
-            "references": [
-                {"title": "Kymriah FDA Approval", "url": "https://www.fda.gov/vaccines-blood-biologics/cellular-gene-therapy-products/kymriah", "type": "FDA"},
-                {"title": "Chimeric Antigen Receptor T Cells for Sustained Remissions in Leukemia", "url": "https://doi.org/10.1056/NEJMoa1407222", "type": "DOI"},
-            ],
-            "difficulty": "hard", "is_featured": True,
-        },
-        {
-            "id": 3, "case_key": "case-003",
-            "title": "PD-1/PD-L1 免疫检查点抑制剂",
-            "subtitle": "从免疫耐受机制到广谱抗肿瘤免疫药物",
-            "industry_direction": "药物研发",
-            "background": "免疫检查点是维持免疫耐受、防止自身免疫的关键机制。1992年日本科学家本庶佑发现PD-1分子，后续研究揭示肿瘤细胞通过高表达PD-L1劫持这一通路来逃避免疫攻击。PD-1抑制剂的成功标志着肿瘤治疗从化疗、靶向治疗迈入免疫治疗时代。",
-            "core_problem": "如何通过阻断PD-1/PD-L1免疫检查点通路恢复肿瘤微环境中T细胞的杀伤功能",
-            "research_foundation": "PD-1是T细胞表面的免疫抑制性受体，其配体PD-L1/PD-L2在多种肿瘤细胞和肿瘤浸润免疫细胞上高表达。PD-1/PD-L1结合后通过SHP-2磷酸酶去磷酸化TCR信号通路关键分子，抑制T细胞增殖和效应功能。阻断这一相互作用的单克隆抗体可解除免疫抑制，恢复抗肿瘤免疫。",
-            "application_value": "PD-1抑制剂（Pembrolizumab/Keytruda、Nivolumab/Opdivo）和PD-L1抑制剂（Atezolizumab/Tecentriq）已被批准用于黑色素瘤、非小细胞肺癌、肾细胞癌、霍奇金淋巴瘤等20余种肿瘤适应症。Keytruda年销售额超250亿美元。",
-            "knowledge_points": ["T细胞活化", "共刺激信号", "免疫检查点", "肿瘤抗原呈递", "T细胞耗竭"],
-            "required_abilities": ["机制解释能力", "文献检索能力", "证据判断能力"],
-            "recommended_keywords": ["PD-1", "PD-L1", "immune checkpoint", "immunotherapy", "Keytruda", "TMB", "MSI-H"],
-            "linked_research_task": "肿瘤突变负荷（TMB）与免疫治疗响应预测",
-            "evidence_level": "high",
-            "source_type": "academic",
-            "display_focus": "PD-1通路发现 → 抗体药物开发 → 生物标志物伴随诊断 → 泛癌种适应症扩展",
-            "migration_path": {
-                "textbookBase": ["T细胞活化与共信号调控", "免疫耐受与自身免疫", "抗体结构与功能"],
-                "researchFrontier": ["PD-1/PD-L1结构解析与阻断", "肿瘤突变负荷(TMB)预测", "免疫联合治疗策略"],
-                "industryApplication": ["Keytruda获批MSI-H泛实体瘤", "PD-L1 IHC伴随诊断试剂", "LAG-3/TIGIT新一代靶点"],
-            },
-            "difficulty": "medium", "is_featured": True,
-        },
-        {
-            "id": 4, "case_key": "case-004",
-            "title": "mRNA 疫苗递送技术",
-            "subtitle": "从核酸化学修饰到脂质纳米颗粒疫苗平台",
-            "industry_direction": "疫苗研发",
-            "background": "mRNA疫苗的概念早在1990年代即被提出，但长期受困于mRNA不稳定性和强免疫原性。Katalin Karikó和Drew Weissman在2005年发现将假尿苷掺入mRNA可显著降低TLR介导的固有免疫识别，这一突破性发现使他们获得2023年诺贝尔生理学或医学奖。",
-            "core_problem": "如何设计稳定的mRNA分子和高效LNP递送系统，使外源mRNA在体内安全高效地表达抗原蛋白并诱导保护性免疫",
-            "research_foundation": "mRNA疫苗技术的核心突破包括：(1) 假尿苷修饰降低mRNA的固有免疫刺激，提高翻译效率；(2) 可电离阳离子脂质设计使LNP在生理pH下呈中性而在内体酸性环境中质子化（促进内体逃逸）；(3) 5'帽结构和3' poly(A)尾优化增强mRNA稳定性和翻译。",
-            "application_value": "Pfizer-BioNTech和Moderna的COVID-19 mRNA疫苗在疫情中展现>90%保护效力，全球接种超百亿剂。mRNA技术平台正迅速拓展至流感、RSV、CMV等传染病疫苗以及个性化肿瘤疫苗领域。",
-            "knowledge_points": ["中心法则", "mRNA翻译", "核酸化学", "脂质纳米颗粒", "抗原呈递"],
-            "required_abilities": ["机制解释能力", "文献检索能力", "数据分析能力"],
-            "recommended_keywords": ["mRNA vaccine", "LNP", "lipid nanoparticle", "pseudouridine", "nucleoside modification", "ionizable lipid"],
-            "linked_research_task": "mRNA序列优化与抗原表达效率评估",
-            "evidence_level": "high",
-            "source_type": "academic",
-            "display_focus": "mRNA化学修饰(Ψ) → LNP递送系统 → 快速响应式疫苗平台 → 肿瘤新抗原疫苗",
-            "migration_path": {
-                "textbookBase": ["中心法则与蛋白质翻译", "核酸结构与化学修饰", "脂质双分子层与纳米颗粒"],
-                "researchFrontier": ["假尿苷修饰降低免疫原性", "可电离脂质设计与内体逃逸", "自扩增RNA(saRNA)"],
-                "industryApplication": ["COVID-19 mRNA疫苗(Pfizer/Moderna)", "个性化肿瘤新抗原疫苗", "mRNA治疗性蛋白表达"],
-            },
-            "difficulty": "medium", "is_featured": True,
-        },
-        {
-            "id": 5, "case_key": "case-005",
-            "title": "CRISPR 基因编辑治疗",
-            "subtitle": "从细菌适应性免疫到精准人类基因修复",
-            "industry_direction": "细胞治疗",
-            "background": "CRISPR是细菌和古菌的适应性免疫系统。2012年Jennifer Doudna和Emmanuelle Charpentier证明CRISPR-Cas9可作为可编程的基因编辑工具，两人于2020年获诺贝尔化学奖。CRISPR技术相比ZFN和TALEN具有设计简便、效率高、可多路编辑等革命性优势。",
-            "core_problem": "如何利用CRISPR基因编辑技术实现安全高效的人类细胞基因修复，治疗遗传性疾病和肿瘤",
-            "research_foundation": "CRISPR-Cas9系统由sgRNA和Cas9核酸内切酶组成。sgRNA通过20nt的间隔序列与靶DNA互补配对，引导Cas9在PAM序列上游3bp处产生DNA双链断裂（DSB），随后通过非同源末端连接（NHEJ）或同源定向修复（HDR）完成基因编辑。",
-            "application_value": "CRISPR编辑的CTX001（Casgevy）用于镰刀细胞贫血和β地中海贫血的体外基因编辑疗法获FDA和EMA批准，是首个获批的CRISPR疗法。体内基因编辑、CRISPR编辑CAR-T等数十项临床试验正在进行中。",
-            "knowledge_points": ["CRISPR-Cas9", "DNA修复机制", "基因表达调控", "sgRNA设计", "脱靶效应"],
-            "required_abilities": ["文献检索能力", "实验设计能力", "证据判断能力"],
-            "recommended_keywords": ["CRISPR-Cas9", "sgRNA design", "HDR", "prime editing", "off-target", "gene therapy", "base editor"],
-            "linked_research_task": "sgRNA靶点设计与脱靶分析",
-            "evidence_level": "high",
-            "source_type": "clinical_trial",
-            "display_focus": "Cas9-sgRNA复合体机制 → 递送策略(AAV/LNP) → 脱靶检测与安全性 → 临床适应症拓展",
-            "migration_path": {
-                "textbookBase": ["DNA双链断裂与修复", "中心法则与基因表达", "核酸酶的结构与功能"],
-                "researchFrontier": ["CRISPR-Cas9机制与PAM识别", "碱基编辑器与先导编辑器", "脱靶检测方法(GUIDE-seq)"],
-                "industryApplication": ["Casgevy(CTX001)镰刀细胞贫血", "体内基因编辑(Intellia NTLA-2001)", "CRISPR编辑CAR-T实体瘤"],
-            },
-            "references": [
-                {"title": "Casgevy FDA Approval", "url": "https://www.fda.gov/vaccines-blood-biologics/casgevy", "type": "FDA"},
-                {"title": "A Programmable Dual-RNA–Guided DNA Endonuclease in Adaptive Bacterial Immunity", "url": "https://doi.org/10.1126/science.1225829", "type": "DOI"},
-            ],
-            "difficulty": "hard", "is_featured": True,
-        },
-    ]
+    seed_file = Path(__file__).parent / "seed_data" / "industry_cases.json"
+    if not seed_file.exists():
+        print(f"[seed] WARNING: {seed_file} not found, skipping industry cases")
+        return
 
-    for c in cases:
-        db.add(IndustryCase(**c))
+    with open(seed_file, "r", encoding="utf-8") as f:
+        cases = json.load(f)
+
+    for idx, c in enumerate(cases):
+        db.add(IndustryCase(
+            case_key=c["case_key"],
+            title=c["title"],
+            subtitle=c.get("subtitle", ""),
+            industry_direction=c.get("industry_direction", ""),
+            company=c.get("company", ""),
+            category=c.get("category", ""),
+            real_product_or_technology=c.get("real_product_or_technology", ""),
+            background=c.get("background", ""),
+            core_problem=c.get("core_problem", ""),
+            problem_statement=c.get("problem_statement", ""),
+            research_foundation=c.get("research_foundation", ""),
+            application_value=c.get("application_value", ""),
+            data_description=c.get("data_description", ""),
+            knowledge_points=c.get("knowledge_points", []),
+            required_abilities=c.get("required_abilities", []),
+            guide_questions=c.get("guide_questions", []),
+            references=c.get("references", []),
+            evaluation_dimensions=c.get("evaluation_dimensions", []),
+            analysis_text=c.get("analysis_text", ""),
+            difficulty=c.get("difficulty", "medium"),
+            recommended_keywords=c.get("recommended_keywords", []),
+            related_papers=c.get("related_papers", []),
+            related_concepts=c.get("related_concepts", []),
+            linked_research_task=c.get("linked_research_task", ""),
+            evidence_level=c.get("evidence_level", "medium"),
+            source_type=c.get("source_type", "academic"),
+            application_scenario=c.get("application_scenario", ""),
+            display_focus=c.get("display_focus", ""),
+            migration_path=c.get("migration_path", {}),
+            source_urls=c.get("source_urls", []),
+            is_featured=c.get("is_featured", False),
+        ))
     db.flush()
+    print(f"[seed] Loaded {len(cases)} industry cases")
 
 
 def _seed_questions(db: Session):

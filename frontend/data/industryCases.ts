@@ -14,6 +14,8 @@ export interface IndustryCase {
   id: string;
   title: string;
   subtitle: string;
+  category: string;
+  realProductOrTechnology: string;
   relatedKnowledgePoints: string[];
   industryDirection: string;
   coreProblem: string;
@@ -23,12 +25,13 @@ export interface IndustryCase {
   recommendedKeywords: string[];
   linkedResearchTask: string;
   evidenceLevel: "高" | "中" | "发展中";
-  sourceType: "学术文献" | "产业报告" | "专利文献" | "临床试验";
+  sourceType: "学术文献" | "产业报告" | "专利文献" | "临床试验" | "监管文件";
   background: string;
   applicationScenario: string;
   displayFocus: string;
   migrationPath: MigrationPath;
   references: Reference[];
+  sourceUrls: string[];
 }
 
 export interface MatchCase {
@@ -95,6 +98,13 @@ export const industryCases: IndustryCase[] = [
       { title: "Mitochondrial priming and BH3 profiling in cancer therapy", url: "https://pubmed.ncbi.nlm.nih.gov/27767093/", type: "PubMed" },
       { title: "NCI Drug Dictionary: Venetoclax", url: "https://www.cancer.gov/publications/dictionaries/cancer-drug/def/venetoclax", type: "NCI" },
     ],
+    category: "生物医药与药物研发",
+    realProductOrTechnology: "Venetoclax (ABT-199)",
+    sourceUrls: [
+      "https://www.fda.gov/drugs/resources-information-approved-drugs/venetoclax",
+      "https://doi.org/10.1038/nm.3048",
+      "https://pubmed.ncbi.nlm.nih.gov/27767093/",
+    ],
   },
   {
     id: "case-002",
@@ -125,6 +135,13 @@ export const industryCases: IndustryCase[] = [
       { title: "NCI: CAR T-Cell Therapy", url: "https://www.cancer.gov/about-cancer/treatment/research/car-t-cells", type: "NCI" },
       { title: "A Review of CAR-T Therapy: Current Status and Future Directions", url: "https://pubmed.ncbi.nlm.nih.gov/35030560/", type: "PubMed" },
     ],
+    category: "生物医药与药物研发",
+    realProductOrTechnology: "Kymriah / Yescarta",
+    sourceUrls: [
+      "https://www.fda.gov/vaccines-blood-biologics/cellular-gene-therapy-products/kymriah",
+      "https://doi.org/10.1056/NEJMoa1407222",
+      "https://pubmed.ncbi.nlm.nih.gov/35030560/",
+    ],
   },
   {
     id: "case-003",
@@ -153,6 +170,13 @@ export const industryCases: IndustryCase[] = [
       { title: "Nivolumab FDA Label (Opdivo)", url: "https://www.accessdata.fda.gov/drugsatfda_docs/label/2024/125554s128lbl.pdf", type: "Label" },
       { title: "Safety, Activity, and Immune Correlates of Anti–PD-1 Antibody in Cancer", url: "https://doi.org/10.1056/NEJMoa1200690", type: "DOI" },
       { title: "PD-1 Blockade in Tumors with Mismatch-Repair Deficiency", url: "https://doi.org/10.1056/NEJMoa1500596", type: "DOI" },
+    ],
+    category: "生物医药与药物研发",
+    realProductOrTechnology: "Keytruda (Pembrolizumab)",
+    sourceUrls: [
+      "https://www.fda.gov/drugs/resources-information-approved-drugs/pembrolizumab-keytruda",
+      "https://doi.org/10.1056/NEJMoa1200690",
+      "https://doi.org/10.1056/NEJMoa1500596",
     ],
   },
   {
@@ -184,6 +208,13 @@ export const industryCases: IndustryCase[] = [
       { title: "Lipid Nanoparticles for mRNA Delivery", url: "https://pubmed.ncbi.nlm.nih.gov/34408243/", type: "PubMed" },
       { title: "mRNA-based therapeutics — developing a new class of drugs", url: "https://doi.org/10.1038/nrd.2017.243", type: "DOI" },
     ],
+    category: "生物医药与药物研发",
+    realProductOrTechnology: "Comirnaty / Spikevax",
+    sourceUrls: [
+      "https://www.fda.gov/vaccines-blood-biologics/comirnaty",
+      "https://doi.org/10.1016/j.immuni.2005.06.008",
+      "https://doi.org/10.1038/nrd.2017.243",
+    ],
   },
   {
     id: "case-005",
@@ -213,6 +244,13 @@ export const industryCases: IndustryCase[] = [
       { title: "CRISPR-Cas9 In Vivo Gene Editing for Transthyretin Amyloidosis", url: "https://doi.org/10.1056/NEJMoa2107454", type: "DOI" },
       { title: "NCI: CRISPR Gene Editing", url: "https://www.cancer.gov/news-events/cancer-currents-blog/2020/crispr-cancer-research-treatment", type: "NCI" },
       { title: "The CRISPR tool kit for genome editing and beyond", url: "https://pubmed.ncbi.nlm.nih.gov/29717225/", type: "PubMed" },
+    ],
+    category: "生物医药与药物研发",
+    realProductOrTechnology: "Casgevy (CTX001)",
+    sourceUrls: [
+      "https://www.fda.gov/vaccines-blood-biologics/casgevy",
+      "https://doi.org/10.1126/science.1225829",
+      "https://pubmed.ncbi.nlm.nih.gov/29717225/",
     ],
   },
 ];

@@ -101,6 +101,7 @@ class SourceType(str, enum.Enum):
     industry_report = "产业报告"
     patent = "专利文献"
     clinical_trial = "临床试验"
+    regulatory = "监管文件"
 
 
 class NodeType(str, enum.Enum):
@@ -316,6 +317,8 @@ class IndustryCase(Base):
     subtitle = Column(String(400), default="")
     industry_direction = Column(String(200), default="")
     company = Column(String(200), default="")
+    category = Column(String(200), default="")
+    real_product_or_technology = Column(String(400), default="")
     background = Column(Text, default="")
     core_problem = Column(Text, default="")
     problem_statement = Column(Text, default="")
@@ -338,6 +341,7 @@ class IndustryCase(Base):
     application_scenario = Column(Text, default="")
     display_focus = Column(String(500), default="")
     migration_path = Column(JSON, default=dict)
+    source_urls = Column(JSON, default=list)
     is_featured = Column(Boolean, default=False)
     metadata_ = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime, default=_utcnow)

@@ -43,10 +43,46 @@ class IndustryCaseService:
 
     def search_cases(self, query: str, limit: int = 10) -> list[IndustryCase]:
         lower = query.lower()
-        return self.db.query(IndustryCase).filter(
+        results = self.db.query(IndustryCase).filter(
             IndustryCase.title.contains(lower) | IndustryCase.industry_direction.contains(lower) |
-            IndustryCase.background.contains(lower) | IndustryCase.problem_statement.contains(lower)
+            IndustryCase.background.contains(lower) | IndustryCase.problem_statement.contains(lower) |
+            IndustryCase.category.contains(lower) | IndustryCase.core_problem.contains(lower)
         ).limit(limit).all()
+
+        if len(results) >= limit:
+            return results
+
+        remaining = self.db.query(IndustryCase).filter(
+            ~IndustryCase.id.in_([r.id for r in results]) if results else True
+        ).all()
+
+        keywords = [w.strip().lower() for w in query.replace("？", " ").replace("?", " ").replace("，", " ").split() if len(w.strip()) >= 2]
+
+        scored = []
+        for case in remaining:
+            score = 0.0
+            kps = [k.lower() for k in (case.knowledge_points or []) if isinstance(k, str)]
+            kws = [k.lower() for k in (case.recommended_keywords or []) if isinstance(k, str)]
+            for kw in keywords:
+                for kp in kps:
+                    if kw in kp or kp in kw:
+                        score += 1.5
+                for kw2 in kws:
+                    if kw in kw2 or kw2 in kw:
+                        score += 1.5
+                title_lower = (case.title or "").lower()
+                if kw in title_lower:
+                    score += 2
+                if kw in (case.industry_direction or "").lower():
+                    score += 2
+                if kw in (case.category or "").lower():
+                    score += 1
+            if score > 0:
+                scored.append((score, case))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        extra = [case for _, case in scored[:limit - len(results)]]
+        return results + extra
 
     def get_case_by_key(self, case_key: str) -> IndustryCase | None:
         return self.db.query(IndustryCase).filter(IndustryCase.case_key == case_key).first() if case_key else None
