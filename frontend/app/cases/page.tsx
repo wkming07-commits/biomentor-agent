@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -9,36 +9,87 @@ import {
   TrendingUp,
   Users,
   FileUp,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { IndustryCaseCard } from "@/components/IndustryCaseCard";
 import { IndustryCaseDetailModal } from "@/components/IndustryCaseDetailModal";
 import { IndustryAskPanel } from "@/components/IndustryAskPanel";
-import {
-  industryCases,
-  industryDirections,
-} from "@/data/industryCases";
-import { searchIndustryCases, getIndustryAnswer } from "@/lib/industryApi";
+import { industryCases as mockCases } from "@/data/industryCases";
+import { getIndustryAnswer, convertApiCaseToFrontend } from "@/lib/industryApi";
 import type { IndustryCase } from "@/data/industryCases";
+import type { ApiIndustryCase } from "@/lib/industryApi";
 
 export default function CasesPage() {
-  const [searchResults, setSearchResults] = useState<typeof industryCases>([]);
+  const [allCases, setAllCases] = useState<IndustryCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiFailed, setApiFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCase, setSelectedCase] = useState<IndustryCase | null>(null);
 
-  const displayCases = showSearch && searchQuery ? searchResults : industryCases;
-
-  const handleSearch = async (q: string) => {
-    setSearchQuery(q);
-    if (!q.trim()) {
-      setShowSearch(false);
-      setSearchResults([]);
-      return;
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/industry/cases");
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.items && data.items.length > 0) {
+            const cases = (data.items as ApiIndustryCase[]).map(convertApiCaseToFrontend);
+            if (!cancelled) {
+              setAllCases(cases);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+        if (!cancelled) {
+          setAllCases(mockCases);
+          setApiFailed(true);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setAllCases(mockCases);
+          setApiFailed(true);
+          setLoading(false);
+        }
+      }
     }
-    const results = await searchIndustryCases(q);
-    setSearchResults(results);
-    setShowSearch(true);
-  };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    allCases.forEach((c) => {
+      if (c.category) cats.add(c.category);
+    });
+    return Array.from(cats).sort();
+  }, [allCases]);
+
+  const filteredCases = useMemo(() => {
+    let result = allCases;
+    if (selectedCategory) {
+      result = result.filter((c) => c.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const lower = searchQuery.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.title.toLowerCase().includes(lower) ||
+          c.subtitle.toLowerCase().includes(lower) ||
+          c.industryDirection.toLowerCase().includes(lower) ||
+          c.category.toLowerCase().includes(lower) ||
+          c.realProductOrTechnology.toLowerCase().includes(lower) ||
+          c.relatedKnowledgePoints.some((k) => k.toLowerCase().includes(lower)) ||
+          c.recommendedKeywords.some((k) => k.toLowerCase().includes(lower)) ||
+          c.coreProblem.toLowerCase().includes(lower),
+      );
+    }
+    return result;
+  }, [allCases, searchQuery, selectedCategory]);
 
   const handleAskQuery = async (query: string) => {
     return getIndustryAnswer(query);
@@ -133,71 +184,128 @@ export default function CasesPage() {
         <section id="cases-section" className="mb-20 scroll-mt-[calc(var(--nav-height)+24px)]">
           <div className="flex items-center justify-between mb-2">
             <span className="section-title">产业案例</span>
-            <div className="hidden sm:flex items-center gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="搜索案例..."
-                className="h-9 px-3.5 rounded-xl glass-card text-xs font-body text-brand-ink placeholder:text-brand-faint/50 outline-none focus:border-accent-electric/20 transition-all w-48"
-              />
-              {showSearch && (
-                <button
-                  onClick={() => { setSearchQuery(""); setShowSearch(false); }}
-                  className="text-[10px] text-brand-faint hover:text-brand-ink transition-colors cursor-pointer"
-                >
-                  清除
-                </button>
-              )}
-            </div>
           </div>
           <h2 className="section-heading mb-2">真实产业应用案例</h2>
-          <p className="text-sm text-brand-muted font-body mb-6 max-w-2xl">
-            每张卡片聚焦一个真实产业问题，内置知识迁移路径与训练能力。点击详情查看深度内容，或进入科研实战探索。
-          </p>
 
-          {displayCases.length === 0 ? (
-            <div className="text-center py-16">
-              <Building2 className="w-10 h-10 text-brand-faint/30 mx-auto mb-3" />
-              <p className="text-sm text-brand-muted font-body">未找到匹配的案例</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 text-brand-faint/40 animate-spin" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {displayCases.map((c) => (
-                <IndustryCaseCard
-                  key={c.id}
-                  caseData={c}
-                  onViewDetail={() => setSelectedCase(c)}
-                />
-              ))}
-            </div>
+            <>
+              {apiFailed && (
+                <div className="flex items-center gap-2 mb-4 px-4 py-2.5 rounded-xl bg-amber-50/80 border border-amber-200/60 text-xs text-amber-700 font-body">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>后端服务暂不可用，当前显示本地示例案例（{allCases.length} 个）。完整案例库共 23 个产业案例。</span>
+                </div>
+              )}
+
+              <p className="text-sm text-brand-muted font-body mb-1 max-w-2xl">
+                每张卡片聚焦一个真实产业问题，内置知识迁移路径与训练能力。点击详情查看深度内容，或进入科研实战探索。
+              </p>
+
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs text-brand-faint font-body">
+                  共 <span className="font-semibold text-brand-ink">{filteredCases.length}</span> 个产业案例{selectedCategory && ` · ${selectedCategory}`}{searchQuery && ` · 搜索"${searchQuery}"`}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="搜索案例标题、知识点、关键词、核心问题..."
+                    className="h-9 px-3.5 rounded-xl glass-card text-xs font-body text-brand-ink placeholder:text-brand-faint/50 outline-none focus:border-accent-electric/20 transition-all w-64 sm:w-72"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-brand-faint hover:text-brand-ink transition-colors cursor-pointer"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="h-9 px-3 rounded-xl glass-card text-xs font-body text-brand-ink outline-none focus:border-accent-electric/20 transition-all cursor-pointer"
+                >
+                  <option value="">全部分类</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              {filteredCases.length === 0 ? (
+                <div className="text-center py-16">
+                  <Building2 className="w-10 h-10 text-brand-faint/30 mx-auto mb-3" />
+                  <p className="text-sm text-brand-muted font-body">未找到匹配的案例</p>
+                  {(searchQuery || selectedCategory) && (
+                    <button
+                      onClick={() => { setSearchQuery(""); setSelectedCategory(""); }}
+                      className="mt-3 text-xs text-blue-600 hover:text-blue-700 cursor-pointer font-body"
+                    >
+                      清除筛选条件
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {filteredCases.map((c) => (
+                    <IndustryCaseCard
+                      key={c.id}
+                      caseData={c}
+                      onViewDetail={() => setSelectedCase(c)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
 
         {/* ===== 产业方向全景 ===== */}
-        <section className="mb-16">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="section-title">产业方向</span>
-          </div>
-          <h2 className="section-heading mb-2">覆盖产业方向</h2>
-          <p className="text-sm text-brand-muted font-body mb-8 max-w-2xl">
-            当前案例库覆盖生命科学领域 8 大核心产业方向，持续扩展中。
-          </p>
+        {!loading && categories.length > 0 && (
+          <section className="mb-16">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="section-title">产业方向</span>
+            </div>
+            <h2 className="section-heading mb-2">覆盖产业方向</h2>
+            <p className="text-sm text-brand-muted font-body mb-8 max-w-2xl">
+              当前案例库覆盖生命科学领域 {categories.length} 个产业方向，覆盖 {allCases.length} 个真实产业案例。
+            </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {industryDirections.map((dir) => (
-              <div key={dir.id} className="glass-card rounded-xl p-5 text-center">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/8 flex items-center justify-center mx-auto mb-3">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                </div>
-                <h4 className="font-display text-sm font-bold text-brand-ink mb-1.5">{dir.name}</h4>
-                <p className="text-[10px] text-brand-faint font-body leading-relaxed">
-                  {dir.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {categories.map((cat) => {
+                const count = allCases.filter((c) => c.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setSelectedCategory(selectedCategory === cat ? "" : cat);
+                      scrollToSection("cases-section");
+                    }}
+                    className={`glass-card rounded-xl p-5 text-center cursor-pointer transition-all hover:shadow-md ${
+                      selectedCategory === cat ? "ring-2 ring-blue-400/30" : ""
+                    }`}
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/8 flex items-center justify-center mx-auto mb-3">
+                      <Building2 className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <h4 className="font-display text-sm font-bold text-brand-ink mb-1.5">{cat}</h4>
+                    <p className="text-[10px] text-brand-faint font-body leading-relaxed">
+                      {count} 个案例
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ===== CTA 底部 ===== */}
         <section className="text-center pt-10 border-t border-black/5">

@@ -276,7 +276,7 @@ function DefaultResearchPage() {
             科研实战训练营
           </h1>
           <p className="text-brand-muted text-sm md:text-base font-body max-w-xl mx-auto">
-            输入研究主题，AI 生成结构化科研训练任务
+            研究主题生成 · 文献检索入口 · 实验设计框架 · 证据判断 · 科研训练任务
           </p>
         </div>
 
@@ -346,7 +346,7 @@ function DefaultResearchPage() {
                 <Search className="w-6 h-6 text-brand-faint/60" />
               </div>
               <p className="text-sm text-brand-muted font-body max-w-sm mx-auto leading-relaxed">
-                输入主题后，将生成研究问题、背景说明、匹配案例、相关知识点和科研训练任务
+                输入主题后，AI 将生成研究问题、背景说明、匹配案例、相关知识点、实验设计框架、证据判断和科研训练任务。当前版本提供关键词和检索策略建议，不涉及真实文献检索。
               </p>
             </div>
           )}
@@ -522,12 +522,12 @@ function DefaultResearchPage() {
 
         {/* ===== 第四块：辅助区 ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          {/* 知识库文献 + 科研任务卡 */}
+          {/* 已接入文献材料 + 科研任务卡 */}
           <div className="lg:col-span-3 space-y-5">
             <div className="glass-card rounded-2xl p-5">
               <h2 className="font-display text-base font-bold text-brand-ink mb-4 flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-accent-electric" />
-                知识库文献
+                已接入文献材料
                 <span className="text-xs text-brand-muted font-normal ml-1">({papers.length} 篇)</span>
               </h2>
               {kbLoading ? (
@@ -538,10 +538,7 @@ function DefaultResearchPage() {
               ) : kbError || papers.length === 0 ? (
                 <div className="text-center py-6">
                   <BookOpen className="w-5 h-5 text-brand-faint/30 mx-auto mb-2" />
-                  <p className="text-xs text-brand-muted">知识库暂无文献</p>
-                  <Link href="/explore" className="inline-flex items-center gap-1 text-xs text-accent-electric mt-1 hover:underline">
-                    去知识探索找文献 <ChevronRight className="w-3 h-3" />
-                  </Link>
+                  <p className="text-xs text-brand-muted leading-relaxed max-w-xs mx-auto">当前暂无已接入文献材料。后续可在科研实战中发起文献检索，或上传论文/课程资料作为本地知识来源。</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -562,6 +559,14 @@ function DefaultResearchPage() {
                   ))}
                 </div>
               )}
+
+              <div className="mt-4 p-3 rounded-xl bg-amber-50/50 border border-amber-100/50">
+                <p className="text-[11px] text-brand-muted font-body leading-relaxed">
+                  <span className="font-semibold text-brand-ink">AI 文献检索：接口预留 / 开发中</span>
+                  <br />
+                  当前版本提供关键词和检索策略建议，真实文献结果需接入外部检索 API 后生成。
+                </p>
+              </div>
             </div>
 
             <div className="glass-card rounded-2xl p-5">

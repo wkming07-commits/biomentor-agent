@@ -14,6 +14,8 @@ import {
   Network,
   Sparkles,
 } from "lucide-react";
+import { IndustryCaseCard } from "@/components/IndustryCaseCard";
+import { industryCases } from "@/data/industryCases";
 
 const modules = [
   {
@@ -90,6 +92,8 @@ const valueCards = [
     icon: BrainCircuit,
   },
 ];
+
+const featuredCases = industryCases.slice(0, 4);
 
 export default function HomePage() {
   return (
@@ -200,6 +204,31 @@ export default function HomePage() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      <section className="px-6 md:px-10 py-20 md:py-28 max-w-7xl mx-auto">
+        <div className="text-center mb-10">
+          <p className="section-title">精选案例</p>
+          <h2 className="section-heading">产业案例精选</h2>
+          <p className="mt-4 text-brand-muted max-w-2xl mx-auto leading-relaxed">
+            从真实产业场景理解生物技术从研究到转化的完整路径，覆盖药物研发、细胞治疗、疫苗研发等核心方向。
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
+          {featuredCases.map((c) => (
+            <IndustryCaseCard key={c.id} caseData={c} />
+          ))}
+        </div>
+        <div className="text-center">
+          <Link
+            href="/cases"
+            className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-2xl font-semibold text-[15px] text-[#0d0d1a] bg-white/60 backdrop-blur-xl border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,.86),0_12px_34px_rgba(67,106,160,.1)] hover:bg-white/85 hover:border-[#fbbf24]/30 hover:shadow-[inset_0_1px_0_rgba(255,255,255,.9),0_18px_44px_rgba(251,191,36,.14)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+          >
+            <Building2 className="w-4 h-4 text-[#fbbf24]" />
+            查看全部 23 个产业案例
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </section>
 

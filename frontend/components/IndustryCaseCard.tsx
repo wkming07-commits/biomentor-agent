@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Info, FlaskConical } from "lucide-react";
+import { ArrowRight, Info, FlaskConical, MessageCircle } from "lucide-react";
 import type { IndustryCase } from "@/data/industryCases";
 
 interface IndustryCaseCardProps {
@@ -86,7 +86,15 @@ export function IndustryCaseCard({ caseData, onViewDetail }: IndustryCaseCardPro
           className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors py-1.5 px-3 rounded-lg hover:bg-blue-50/60 ml-auto"
         >
           <FlaskConical className="w-3.5 h-3.5" />
-          进入科研实战
+          科研实战
+          <ArrowRight className="w-3 h-3" />
+        </Link>
+        <Link
+          href={`/seminar?caseId=${c.id}`}
+          className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors py-1.5 px-3 rounded-lg hover:bg-emerald-50/60"
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          学术研讨
           <ArrowRight className="w-3 h-3" />
         </Link>
       </div>

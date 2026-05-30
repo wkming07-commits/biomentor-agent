@@ -45,7 +45,7 @@ export interface ApiIndustryCase {
   source_urls: string[];
 }
 
-function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
+export function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase {
   return {
     id: apiCase.case_key,
     title: apiCase.title,
