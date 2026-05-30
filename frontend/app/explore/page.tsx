@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Upload, Image, FileText, X, Loader2, Send, User, Bot,
+  Upload, FileText, X, Loader2, Send, User, Bot,
   BookOpen, Lightbulb, Sparkles, FileQuestion, ChevronRight,
   Microscope, Camera, ScanLine,
 } from "lucide-react";
@@ -25,7 +25,7 @@ export default function ExplorePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "你好，我是 BioMentor AI 导师。上传课本图片、PDF 或 DOCX，系统会用真实 OCR 提取文字并分析知识点。" },
+    { role: "ai", content: "你好，我是 BioMentor AI 导师。上传教材 PDF 或 DOCX，系统会用真实 OCR 提取文字并分析知识点。" },
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
@@ -63,14 +63,39 @@ export default function ExplorePage() {
     setStep("ocr");
 
     try {
-      // Step 1: Real OCR for each file
+      const fileList = Array.from(files);
+      const pdfFiles = fileList.filter(f => f.type.includes("pdf"));
+      const docFiles = fileList.filter(f => !f.type.includes("pdf"));
+
+      let allContent = "";
       const newFiles: UploadedFile[] = [];
-      for (const file of Array.from(files)) {
-        setMessages((prev) => [...prev, { role: "ai", content: `正在用真实 OCR 识别 ${file.name} …` }]);
+      const fileName = fileList[0]?.name || "";
+
+      if (pdfFiles.length > 0) {
+        setMessages((prev) => [...prev, { role: "ai", content: `正在将 PDF 文件直接发送给 AI 分析…` }]);
+        const pdfFile = pdfFiles[0];
+        const base64Data = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(pdfFile);
+        });
+        allContent = base64Data;
+        newFiles.push({
+          name: pdfFile.name,
+          type: "pdf",
+          size: formatFileSize(pdfFile.size),
+          text: "PDF文件",
+          engine: "DeepSeek Direct",
+        });
+      }
+
+      for (const file of docFiles) {
+        setMessages((prev) => [...prev, { role: "ai", content: `正在用 OCR 识别 ${file.name} …` }]);
         const { text, engine } = await realOcr(file);
+        allContent += (allContent ? "\n\n" : "") + text;
         newFiles.push({
           name: file.name,
-          type: file.type.startsWith("image") ? "image" : file.type.includes("pdf") ? "pdf" : "doc",
+          type: "doc",
           size: formatFileSize(file.size),
           text,
           engine,
@@ -78,25 +103,22 @@ export default function ExplorePage() {
       }
 
       setUploadedFiles(newFiles);
-      const allText = newFiles.map((f) => f.text).join("\n\n");
-      const fileName = newFiles[0]?.name || "";
 
-      // Step 2: AI analysis via Next.js API (DeepSeek)
       setStep("analyzing");
-      setMessages((prev) => [...prev, { role: "ai", content: "OCR 完成！正在用 AI 分析知识点…" }]);
+      setMessages((prev) => [...prev, { role: "ai", content: "正在用 AI 分析知识点…" }]);
 
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: allText, fileName }),
+        body: JSON.stringify({ content: allContent, fileName }),
       });
 
       const result = await response.json();
       if (result.success) {
-        setSummary({ ...result.data, ocrEngine: newFiles[0]?.engine });
+        setSummary({ ...result.data, ocrEngine: pdfFiles.length > 0 ? "DeepSeek Direct" : newFiles[0]?.engine });
         setMessages((prev) => [...prev, {
           role: "ai",
-          content: `教材解析完成！已提取 ${result.data.knowledgePoints?.length || 0} 个核心知识点和 ${result.data.keywords?.length || 0} 个关键词。（OCR 引擎：${newFiles.map((f) => f.engine).join(", ")}）`,
+          content: `教材解析完成！已提取 ${result.data.knowledgePoints?.length || 0} 个核心知识点和 ${result.data.keywords?.length || 0} 个关键词。`,
         }]);
       } else {
         throw new Error(result.error || "分析失败");
@@ -104,7 +126,7 @@ export default function ExplorePage() {
       setStep("done");
     } catch (error) {
       console.error("分析失败:", error);
-      setMessages((prev) => [...prev, { role: "ai", content: `抱歉，处理失败：${error instanceof Error ? error.message : "未知错误"}。请确认 Python 后端 (localhost:8000) 已启动。` }]);
+      setMessages((prev) => [...prev, { role: "ai", content: `抱歉，处理失败：${error instanceof Error ? error.message : "未知错误"}` }]);
       setStep("idle");
     } finally {
       setIsAnalyzing(false);
@@ -172,10 +194,10 @@ export default function ExplorePage() {
             知识探索中心
           </h1>
           <p className="text-gray-600">
-            上传教材图片或 PDF，真实 OCR 提取文字，AI 总结知识要点、生成练习题、提供学习建议
+            上传教材 PDF 或 DOCX，真实 OCR 提取文字，AI 总结知识要点、生成练习题、提供学习建议
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            OCR 引擎：PDF → PyMuPDF | 图片 → DeepSeek Vision | DOCX → python-docx
+            OCR 引擎：PDF → PyMuPDF | DOCX → python-docx
           </p>
         </div>
 
@@ -184,7 +206,7 @@ export default function ExplorePage() {
           <div className="flex items-center gap-2 mb-4">
             <Upload className="w-5 h-5 text-blue-500" />
             <h3 className="font-semibold text-gray-800">上传教材资料</h3>
-            <span className="text-sm text-gray-500">支持图片（PNG/JPG）、PDF、DOCX，最大 50MB</span>
+            <span className="text-sm text-gray-500">支持 PDF、DOCX，最大 50MB</span>
           </div>
           <div
             className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
@@ -194,14 +216,14 @@ export default function ExplorePage() {
             onClick={() => fileInputRef.current?.click()}
           >
             <input ref={fileInputRef} type="file" className="hidden"
-              accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               multiple onChange={(e) => handleFileUpload(e.target.files)} />
             <div className="flex flex-col items-center">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
                 <Upload className="w-6 h-6 text-blue-500" />
               </div>
               <p className="text-gray-700 font-medium">点击或拖拽上传文件</p>
-              <p className="text-gray-400 text-sm">PNG, JPG, PDF, DOCX — 真实 OCR</p>
+              <p className="text-gray-400 text-sm">PDF, DOCX — 真实 OCR</p>
             </div>
           </div>
 
@@ -211,8 +233,7 @@ export default function ExplorePage() {
               {uploadedFiles.map((file, index) => (
                 <div key={index} className="flex items-center justify-between p-4 bg-white/50 rounded-xl">
                   <div className="flex items-center gap-3">
-                    {file.type === "image" ? <Image className="w-8 h-8 text-blue-500" />
-                      : file.type === "pdf" ? <FileText className="w-8 h-8 text-red-500" />
+                    {file.type === "pdf" ? <FileText className="w-8 h-8 text-red-500" />
                       : <FileText className="w-8 h-8 text-purple-500" />}
                     <div>
                       <p className="font-medium text-gray-800">{file.name}</p>
@@ -237,7 +258,7 @@ export default function ExplorePage() {
                 {step === "ocr" ? "正在进行真实 OCR 识别…" : "AI 正在分析教材内容…"}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {step === "ocr" ? "PDF 用 PyMuPDF，图片用 DeepSeek Vision" : "调用 DeepSeek 大模型分析"}
+                {step === "ocr" ? "PDF 用 PyMuPDF，DOCX 用 python-docx" : "调用 DeepSeek 大模型分析"}
               </p>
             </div>
           </div>
