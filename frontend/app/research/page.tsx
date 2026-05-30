@@ -698,14 +698,14 @@ function DefaultResearchPage() {
 function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase; caseKey: string }) {
   const [result, setResult] = useState<ResearchTaskGenerateResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const lastCaseKeyRef = useRef<string | null>(null);
+  const generatingRef = useRef(false);
 
   useEffect(() => {
-    if (lastCaseKeyRef.current === caseKey) return;
-    lastCaseKeyRef.current = caseKey;
     let cancelled = false;
 
     async function load() {
+      if (generatingRef.current) return;
+      generatingRef.current = true;
       setLoading(true);
       try {
         const data = await generateResearchTask({
@@ -725,13 +725,19 @@ function CaseDrivenResearchPage({ caseData, caseKey }: { caseData: IndustryCase;
           );
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          generatingRef.current = false;
+        }
       }
     }
 
     load();
-    return () => { cancelled = true; };
-  }, [caseData, caseKey]);
+    return () => {
+      cancelled = true;
+      generatingRef.current = false;
+    };
+  }, [caseKey]);
 
   const sourceScopeLabel = (scope: string | undefined) => {
     if (!scope) return "基于本地模板生成，建议补充文献材料";
