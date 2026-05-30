@@ -74,7 +74,7 @@ export function convertApiCaseToFrontend(apiCase: ApiIndustryCase): IndustryCase
 }
 
 export async function fetchIndustryCases(): Promise<IndustryCase[]> {
-  const data = await apiFetch<{ items: ApiIndustryCase[] }>("/api/industry/cases");
+  const data = await apiFetch<{ items: ApiIndustryCase[] }>("/api/industry/cases?page_size=100");
   if (data?.items && data.items.length > 0) {
     return data.items.map(convertApiCaseToFrontend);
   }

@@ -43,14 +43,20 @@ export interface ResearchTaskGenerateRequest {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(path, {
       ...init,
+      signal: controller.signal,
       headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     });
+    clearTimeout(timeout);
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
+    clearTimeout(timeout);
     return null;
   }
 }
