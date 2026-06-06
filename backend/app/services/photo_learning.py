@@ -332,12 +332,12 @@ class PhotoLearningService:
 
         concepts, papers = self._match_knowledge(all_keywords[:8])
         questions = self._normalize_questions(llm_result.get("questions"))
-        if len(questions) < 5:
+        if len(questions) < 4:
             questions = self._repair_questions(
                 text=text,
                 llm_result=llm_result,
                 existing_questions=questions,
-                target_count=5,
+                target_count=4,
             )
         if len(questions) == 0:
             raise RuntimeError("GLM analysis did not return enough usable questions")
