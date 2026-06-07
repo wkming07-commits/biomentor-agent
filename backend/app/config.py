@@ -41,16 +41,18 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 120
 
     # ---- LLM / Embedding ----
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
     EMBEDDING_MODEL: str = "local-all-MiniLM-L6-v2"
-    LLM_MODEL: str = "glm-4-flash"
+    LLM_MODEL: str = "glm-4-flash-250414"
     LLM_TEMPERATURE: float = 0.3
     LLM_MAX_TOKENS: int = 4096
 
     # ---- GLM evidence-grounded generation ----
     GLM_API_KEY: str = ""
     GLM_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
-    GLM_MODEL: str = "glm-4-flash"
-    GLM_VISION_MODEL: str = "glm-4.6v-flash"
+    GLM_MODEL: str = "glm-4-flash-250414"
+    GLM_VISION_MODEL: str = "glm-4v-flash"
     GLM_FILE_PARSER_TOOL: str = "prime-sync"
     GLM_TIMEOUT_SECONDS: int = 30
     GLM_FILE_PARSER_TIMEOUT_SECONDS: int = 180
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     RAG_SIMILARITY_THRESHOLD: float = 0.65
 
     # ---- Agent ----
-    AGENT_MAX_RETRIES: int = 1
+    AGENT_MAX_RETRIES: int = 2
     AGENT_TIMEOUT_SECONDS: int = 45
 
     # ---- Assessment ----

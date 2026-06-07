@@ -3,29 +3,31 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas import ResearchPaperOut, ResearchPaperUpdate
+from app.services.paper_import_jobs import paper_import_jobs
 from app.services.papers import PaperService
 
 router = APIRouter(prefix="/api/research/papers", tags=["paper-library"])
 
 
-@router.post("/import-pdf", response_model=ResearchPaperOut, status_code=201)
+@router.post("/import-pdf", status_code=202)
 async def import_paper_pdf(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
 ):
     filename = file.filename or "paper.pdf"
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
-    service = PaperService(db)
-    try:
-        content = await file.read()
-        imported = service.import_pdf(filename=filename, content=content)
-        return service.serialize_paper(imported)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    content = await file.read()
+    job = paper_import_jobs.submit(filename=filename, content=content)
+    return job.to_dict()
+
+
+@router.get("/import-pdf/jobs/{job_id}")
+def get_import_paper_pdf_job(job_id: str):
+    job = paper_import_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+    return job.to_dict()
 
 
 @router.patch("/{paper_id}", response_model=ResearchPaperOut)

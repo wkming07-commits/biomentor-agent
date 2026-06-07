@@ -387,15 +387,20 @@ export default function ExplorePage() {
                     <div className="space-y-3">
                       {backendResult.learning_suggestions.map((suggestion, index) => (
                         <div key={index} className="p-3 bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg">
-                          {typeof suggestion === 'object' ? (
-                            <>
-                              <p className="text-sm font-medium text-gray-800">错误知识点：{suggestion.error_point}</p>
-                              <p className="text-sm text-gray-600 mt-1">错误原因分析：{suggestion.error_reason}</p>
-                              <p className="text-sm text-gray-600 mt-1">针对性训练方法：{suggestion.training_method}</p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-gray-700 leading-7">{suggestion}</p>
-                          )}
+                          {(() => {
+                            const item = suggestion as unknown;
+                            if (item && typeof item === "object") {
+                              const detail = item as { error_point?: string; error_reason?: string; training_method?: string };
+                              return (
+                                <>
+                                  <p className="text-sm font-medium text-gray-800">??????{detail.error_point}</p>
+                                  <p className="text-sm text-gray-600 mt-1">???????{detail.error_reason}</p>
+                                  <p className="text-sm text-gray-600 mt-1">????????{detail.training_method}</p>
+                                </>
+                              );
+                            }
+                            return <p className="text-sm text-gray-700 leading-7">{suggestion}</p>;
+                          })()}
                         </div>
                       ))}
                     </div>

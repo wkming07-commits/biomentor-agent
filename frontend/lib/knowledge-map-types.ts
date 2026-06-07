@@ -84,5 +84,5 @@ export interface KnowledgeAiResponse {
   nextSteps: string[];
   suggestedQuestions: string[];
   moduleLinks: KnowledgeModuleLink[];
-  source?: "glm" | "local_fallback";
+  source?: "glm" | "deepseek" | "local_fallback";
 }

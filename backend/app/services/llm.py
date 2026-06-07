@@ -91,7 +91,7 @@ class LLMService:
         if not self.available:
             raise RuntimeError("LLM service unavailable: GLM API key is not configured")
 
-        model = model or self.settings.resolved_llm_model()
+        preferred_model = model or self.settings.resolved_llm_model()
         temperature = temperature if temperature is not None else self.settings.LLM_TEMPERATURE
         max_tokens = max_tokens or self.settings.LLM_MAX_TOKENS
         max_retries = retries if retries is not None else self.settings.AGENT_MAX_RETRIES
@@ -100,16 +100,15 @@ class LLMService:
         if response_schema:
             request_messages = self._inject_json_instructions(request_messages, response_schema)
 
-        kwargs: dict[str, Any] = {
-            "model": model,
+        base_kwargs: dict[str, Any] = {
             "messages": request_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
         if extra_body:
-            kwargs["extra_body"] = extra_body
-        if response_schema:
-            kwargs["response_format"] = (
+            base_kwargs["extra_body"] = extra_body
+        if response_schema and not self._messages_have_multimodal_content(messages):
+            base_kwargs["response_format"] = (
                 {"type": "json_object"}
                 if self.is_glm
                 else {
@@ -124,34 +123,45 @@ class LLMService:
 
         last_error: Exception | None = None
         start = time.time()
-        for attempt in range(max_retries + 1):
-            for client_label, client in self.clients:
-                try:
-                    completion = self._post_chat_completion(client, kwargs)
-                    elapsed = int((time.time() - start) * 1000)
-                    choice = (completion.get("choices") or [{}])[0]
-                    message = choice.get("message") or {}
-                    content = self._message_content_to_text(message.get("content"))
-                    usage = completion.get("usage") or {}
-                    parsed = self._extract_json(content) if response_schema else None
-                    return LLMResponse(
-                        content=content,
-                        parsed=parsed,
-                        model=str(completion.get("model") or model),
-                        tokens_prompt=int(usage.get("prompt_tokens") or 0),
-                        tokens_completion=int(usage.get("completion_tokens") or 0),
-                        tokens_total=int(usage.get("total_tokens") or 0),
-                        duration_ms=elapsed,
-                        finish_reason=str(choice.get("finish_reason") or "stop"),
-                    )
-                except Exception as exc:
-                    last_error = RuntimeError(f"[{client_label}] {exc}")
-                    continue
+        model_candidates = self._model_candidates(preferred_model, messages)
+        total_attempts = max_retries + 1
 
-            if attempt < max_retries:
-                time.sleep(self._retry_delay(last_error, attempt))
+        for model_name in model_candidates:
+            kwargs = {**base_kwargs, "model": model_name}
+            for attempt in range(total_attempts):
+                for client_label, client in self.clients:
+                    try:
+                        completion = self._post_chat_completion(client, kwargs)
+                        elapsed = int((time.time() - start) * 1000)
+                        choice = (completion.get("choices") or [{}])[0]
+                        message = choice.get("message") or {}
+                        content = self._message_content_to_text(message.get("content"))
+                        if not content.strip():
+                            raise RuntimeError("GLM response content is empty")
+                        usage = completion.get("usage") or {}
+                        parsed = self._extract_json(content) if response_schema else None
+                        return LLMResponse(
+                            content=content,
+                            parsed=parsed,
+                            model=str(completion.get("model") or model_name),
+                            tokens_prompt=int(usage.get("prompt_tokens") or 0),
+                            tokens_completion=int(usage.get("completion_tokens") or 0),
+                            tokens_total=int(usage.get("total_tokens") or 0),
+                            duration_ms=elapsed,
+                            finish_reason=str(choice.get("finish_reason") or "stop"),
+                        )
+                    except Exception as exc:
+                        last_error = RuntimeError(f"[{client_label}][{model_name}] {exc}")
+                        if self._is_non_retryable_error(exc):
+                            raise last_error from exc
+                        continue
 
-        raise RuntimeError(f"LLM call failed after {max_retries + 1} attempts: {last_error}")
+                if attempt < max_retries:
+                    time.sleep(self._retry_delay(last_error, attempt))
+
+        raise RuntimeError(
+            f"LLM call failed after trying models {', '.join(model_candidates)}: {last_error}"
+        )
 
     def chat_stream(
         self,
@@ -443,11 +453,65 @@ class LLMService:
             return "image/jp2"
         return "application/octet-stream"
 
+    def _model_candidates(self, preferred_model: str, messages: list[dict[str, Any]]) -> list[str]:
+        candidates: list[str] = []
+        self._append_unique(candidates, preferred_model)
+        has_multimodal = self._messages_have_multimodal_content(messages)
+        if has_multimodal:
+            for item in (
+                self.settings.GLM_VISION_MODEL,
+                "glm-4v-flash",
+                "glm-4.6v-flash",
+                self.settings.resolved_llm_model(),
+            ):
+                self._append_unique(candidates, item)
+        else:
+            for item in (
+                self.settings.resolved_llm_model(),
+                "glm-4-flash-250414",
+                "glm-4-flash",
+            ):
+                self._append_unique(candidates, item)
+        return candidates
+
+    def _append_unique(self, items: list[str], value: str | None) -> None:
+        clean = (value or "").strip()
+        if clean and clean not in items:
+            items.append(clean)
+
+    def _messages_have_multimodal_content(self, messages: list[dict[str, Any]]) -> bool:
+        for message in messages:
+            content = message.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    part_type = str(part.get("type") or "").lower()
+                    if part_type in {"image_url", "file_url", "video_url", "input_image", "input_file"}:
+                        return True
+        return False
+
+    def _is_non_retryable_error(self, error: Exception) -> bool:
+        text = str(error or "").lower()
+        non_retryable_markers = (
+            "401",
+            "403",
+            "unauthorized",
+            "forbidden",
+            "invalid api key",
+            "insufficient balance",
+            "insufficient_balance",
+            "quota",
+        )
+        return any(marker in text for marker in non_retryable_markers)
+
     def _retry_delay(self, error: Exception | None, attempt: int) -> int:
-        text = str(error or "")
-        if "429" in text or "速率限制" in text or "rate limit" in text.lower():
-            return min(10 * (attempt + 1), 30)
-        return 2**attempt
+        text = str(error or "").lower()
+        if any(marker in text for marker in ("429", "rate limit", "1302", "1305")):
+            return min(4 * (attempt + 1), 12)
+        if "timeout" in text or "timed out" in text:
+            return min(2 * (attempt + 1), 6)
+        return min(1 + attempt, 4)
 
     def _post_chat_completion(self, client: httpx.Client, payload: dict[str, Any]) -> dict[str, Any]:
         response = client.post(

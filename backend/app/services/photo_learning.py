@@ -118,7 +118,7 @@ class PhotoLearningService:
             return self._attach_processing_metadata(
                 analysis,
                 file_kind=file_kind,
-                engine=f"glm-vision-analysis:{self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model()}",
+                engine=f"glm-vision-analysis:{self.llm.settings.GLM_VISION_MODEL or 'glm-4v-flash'}",
                 char_count=len(transcribed_text),
                 filename=filename,
             )
@@ -136,7 +136,7 @@ class PhotoLearningService:
             return self._attach_processing_metadata(
                 analysis,
                 file_kind=file_kind,
-                engine=f"glm-pdf-analysis:{self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model()}",
+                engine=f"glm-pdf-analysis:{self.llm.settings.GLM_VISION_MODEL or 'glm-4v-flash'}",
                 char_count=len(transcribed_text),
                 filename=filename,
             )
@@ -213,11 +213,11 @@ class PhotoLearningService:
                 {"role": "system", "content": PHOTO_ANALYSIS_SYSTEM},
                 {"role": "user", "content": content},
             ],
-            model=self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model(),
+            model=self.llm.settings.GLM_VISION_MODEL or "glm-4v-flash",
             temperature=0.2,
             max_tokens=2200,
             response_schema=PHOTO_ANALYSIS_SCHEMA,
-            retries=1,
+            retries=2,
         )
         if response.parsed:
             return response.parsed
@@ -239,11 +239,11 @@ class PhotoLearningService:
                     ],
                 },
             ],
-            model=self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model(),
+            model=self.llm.settings.GLM_VISION_MODEL or "glm-4v-flash",
             temperature=0.2,
             max_tokens=2200,
             response_schema=None,
-            retries=0,
+            retries=1,
         )
         parsed = self.llm._extract_json(repaired.content)
         if parsed:
@@ -281,11 +281,11 @@ class PhotoLearningService:
                 {"role": "system", "content": pdf_system_prompt},
                 {"role": "user", "content": content},
             ],
-            model=self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model(),
+            model=self.llm.settings.GLM_VISION_MODEL or "glm-4v-flash",
             temperature=0.1,
             max_tokens=1400,
             response_schema=PHOTO_ANALYSIS_SCHEMA,
-            retries=0,
+            retries=1,
             extra_body={"thinking": {"type": "disabled"}},
         )
         if response.parsed:
@@ -302,11 +302,11 @@ class PhotoLearningService:
                 },
                 {"role": "user", "content": content},
             ],
-            model=self.llm.settings.GLM_VISION_MODEL or self.llm.settings.resolved_llm_model(),
+            model=self.llm.settings.GLM_VISION_MODEL or "glm-4v-flash",
             temperature=0.1,
             max_tokens=1400,
             response_schema=None,
-            retries=0,
+            retries=1,
             extra_body={"thinking": {"type": "disabled"}},
         )
         parsed = self.llm._extract_json(repaired.content)
@@ -339,6 +339,8 @@ class PhotoLearningService:
                 existing_questions=questions,
                 target_count=4,
             )
+        if len(questions) == 0:
+            questions = self._generate_question_regeneration_batch(text=text, llm_result=llm_result)
         if len(questions) == 0:
             raise RuntimeError("GLM analysis did not return enough usable questions")
 

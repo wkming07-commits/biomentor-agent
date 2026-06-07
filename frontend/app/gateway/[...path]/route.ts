@@ -31,30 +31,17 @@ async function proxy(request: NextRequest, context: { params: { path: string[] }
 
   const method = request.method.toUpperCase();
   const hasBody = method !== "GET" && method !== "HEAD";
-  const contentType = request.headers.get("content-type") || "";
-  const isMultipart = hasBody && contentType.includes("multipart/form-data");
-  const body = hasBody
-    ? isMultipart
-      ? await rebuildMultipartFormData(request)
-      : Buffer.from(await request.arrayBuffer())
-    : undefined;
+  const body = hasBody ? Buffer.from(await request.arrayBuffer()) : undefined;
 
-  if (isMultipart) {
-    headers.delete("content-type");
-  }
-
-  const response = await fetch(target, {
+  const fetchInit: RequestInit = {
     method,
     headers,
-    body:
-      body instanceof FormData
-        ? body
-        : body && body.length > 0
-          ? body
-          : undefined,
+    body: body && body.length > 0 ? body : undefined,
     cache: "no-store",
     redirect: "manual",
-  });
+  };
+
+  const response = await fetch(target, fetchInit);
 
   const responseHeaders = new Headers(response.headers);
   responseHeaders.delete("content-encoding");
@@ -74,22 +61,3 @@ export const PATCH = proxy;
 export const DELETE = proxy;
 export const OPTIONS = proxy;
 export const HEAD = proxy;
-
-async function rebuildMultipartFormData(request: NextRequest) {
-  const source = await request.formData();
-  const target = new FormData();
-
-  for (const [key, value] of source.entries()) {
-    if (value instanceof File) {
-      const fileBuffer = Buffer.from(await value.arrayBuffer());
-      const fileBlob = new Blob([fileBuffer], {
-        type: value.type || "application/octet-stream",
-      });
-      target.append(key, fileBlob, value.name);
-      continue;
-    }
-    target.append(key, String(value));
-  }
-
-  return target;
-}

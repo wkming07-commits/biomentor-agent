@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 
 const API_BASE = "/gateway";
+const BACKEND_DIRECT_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:10087` : "");
 
 interface ResearchPaper {
   id: number;
@@ -40,6 +43,16 @@ interface ResearchPaperListResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+interface PaperImportJob {
+  job_id: string;
+  filename: string;
+  status: "queued" | "running" | "succeeded" | "failed";
+  message: string;
+  paper_id?: number | null;
+  paper_title?: string;
+  error?: string;
 }
 
 interface PaperAnalysis {
@@ -88,9 +101,11 @@ type InsightState =
 
 export default function PaperLibraryPage() {
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [importingPdf, setImportingPdf] = useState(false);
+  const [importJob, setImportJob] = useState<PaperImportJob | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [analysisLoadingId, setAnalysisLoadingId] = useState<number | null>(null);
   const [planLoadingId, setPlanLoadingId] = useState<number | null>(null);
@@ -110,6 +125,7 @@ export default function PaperLibraryPage() {
       }
       const data = (await response.json()) as ResearchPaperListResponse;
       setPapers(data.items || []);
+      setTotal(data.total || 0);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "文献列表加载失败");
     } finally {
@@ -195,30 +211,61 @@ export default function PaperLibraryPage() {
     }
   };
 
+  const pollImportJob = async (jobId: string) => {
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await fetch(`${BACKEND_DIRECT_BASE}/api/research/papers/import-pdf/jobs/${jobId}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: "PDF 导入任务查询失败" }));
+        throw new Error(body.detail || "PDF 导入任务查询失败");
+      }
+
+      const job = (await response.json()) as PaperImportJob;
+      setImportJob(job);
+
+      if (job.status === "succeeded") {
+        setSuccess(`PDF 已解析并入库：${job.paper_title || job.filename}`);
+        await loadPapers();
+        return;
+      }
+
+      if (job.status === "failed") {
+        throw new Error(job.error || job.message || "PDF 导入失败");
+      }
+    }
+
+    throw new Error("PDF 导入仍在后台解析，请稍后刷新文献列表");
+  };
+
   const handleImportPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setImportingPdf(true);
+    setImportJob(null);
     clearMessages();
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`${API_BASE}/api/research/papers/import-pdf`, {
+      const response = await fetch(`${BACKEND_DIRECT_BASE}/api/research/papers/import-pdf`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        const body = await response.json().catch(() => ({ detail: "PDF 导入失败" }));
-        throw new Error(body.detail || "PDF 导入失败");
+        const body = await response.json().catch(() => ({ detail: "PDF 导入任务创建失败" }));
+        throw new Error(body.detail || "PDF 导入任务创建失败");
       }
 
-      const importedPaper = (await response.json()) as ResearchPaper;
-      setSuccess(`PDF 已解析并入库：${importedPaper.title_zh || importedPaper.title}`);
-      await loadPapers();
+      const job = (await response.json()) as PaperImportJob;
+      setImportJob(job);
+      setSuccess(`PDF 已提交后台解析：${job.filename}`);
+      await pollImportJob(job.job_id);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "PDF 导入失败");
     } finally {
@@ -314,7 +361,12 @@ export default function PaperLibraryPage() {
               {importingPdf && (
                 <div className="mt-4 inline-flex items-center gap-2 text-sm text-brand-muted">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  正在解析 PDF 并写入文献库
+                  {importJob?.message || "PDF 已提交后台解析，正在等待任务状态"}
+                </div>
+              )}
+              {importJob && !importingPdf && importJob.status !== "succeeded" && (
+                <div className="mt-4 text-sm text-brand-muted">
+                  后台任务状态：{importJob.message}
                 </div>
               )}
             </div>
@@ -359,7 +411,7 @@ export default function PaperLibraryPage() {
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="font-display font-bold text-sm text-brand-ink">后端文献列表</h2>
-                  <p className="text-xs text-brand-faint font-body mt-1">共 {papers.length} 篇</p>
+                  <p className="text-xs text-brand-faint font-body mt-1">共 {total} 篇</p>
                 </div>
                 <button
                   onClick={() => void loadPapers()}

@@ -1,163 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { industryCases } from "@/data/industryCases";
-import { callDeepSeekJson } from "@/lib/deepseek-client.mjs";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-interface MatchCase {
-  id: string;
-  title: string;
-  reason: string;
-}
-
-interface IndustryAnswerResponse {
-  query: string;
-  answer: string;
-  relatedKnowledgePoints: string[];
-  matchedCases: MatchCase[];
-  researchFrontiers: string[];
-  industryApplications: string[];
-  requiredAbilities: string[];
-  recommendedKeywords: string[];
-  nextTasks: string[];
-  sourceScope: "based_on_local_cases" | "extended_reasoning" | "no_direct_match";
-  disclaimer: string;
-  _source?: "glm";
-}
-
-const industryAliasMap: Record<string, string[]> = {
-  "case-002": ["car-t", "cart", "嵌合抗原受体", "t 细胞", "t细胞"],
-  "case-004": ["mrna", "lnp", "脂质纳米", "递送"],
-  "case-003": ["crispr", "基因编辑"],
-  "case-006": ["pd-1", "pd-l1", "免疫检查点"],
-  "case-001": ["venetoclax", "bcl-2", "细胞凋亡"],
-  "case-035": ["alphafold", "蛋白结构预测", "结构预测"],
-  "case-036": ["培养细胞食品", "cultured meat", "upside", "培养动物细胞"],
-};
-
-function buildCasesContext(): string {
-  return industryCases
-    .map((item, index) => {
-      const aliases = industryAliasMap[item.id] || [];
-      return [
-        `Case ${index + 1}: [${item.id}] ${item.title}`,
-        `Subtitle: ${item.subtitle}`,
-        aliases.length > 0 ? `Aliases: ${aliases.join(", ")}` : "",
-        `Industry Direction: ${item.industryDirection}`,
-        `Core Problem: ${item.coreProblem}`,
-        `Knowledge Points: ${item.relatedKnowledgePoints.join(", ")}`,
-        `Research Foundation: ${item.researchFoundation}`,
-        `Application Value: ${item.applicationValue}`,
-        `Required Abilities: ${item.requiredAbilities.join(", ")}`,
-        `Recommended Keywords: ${item.recommendedKeywords.join(", ")}`,
-        `Next Research Task: ${item.linkedResearchTask}`,
-      ].join("\n");
-    })
-    .join("\n\n");
-}
-
-const SYSTEM_PROMPT = `You are an industry-case tutor for life science education.
-
-Return exactly one JSON object in Simplified Chinese.
-Do not output markdown.
-Do not fabricate local fallback answers.
-Ground the answer in the provided case library, and clearly mark when the query needs extended reasoning.
-
-Required fields:
-- answer: concise but concrete answer in Chinese
-- relatedKnowledgePoints: array of strings
-- matchedCases: array of {id, title, reason}
-- researchFrontiers: array of strings
-- industryApplications: array of strings
-- requiredAbilities: array of strings
-- recommendedKeywords: array of strings
-- nextTasks: array of strings
-- sourceScope: one of based_on_local_cases / extended_reasoning / no_direct_match
-- disclaimer: one short disclaimer for learning use only`;
-
-function buildUserPrompt(query: string): string {
-  return `Case library:
-${buildCasesContext()}
-
-User query:
-${query}
-
-Return a JSON object that matches the required schema.`;
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item || "").trim()).filter(Boolean);
-}
-
-function normalizeMatchedCases(value: unknown): MatchCase[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const row = item as Record<string, unknown>;
-      const id = String(row.id || "").trim();
-      const title = String(row.title || "").trim();
-      const reason = String(row.reason || "").trim();
-      if (!id || !title || !reason) return null;
-      return { id, title, reason };
-    })
-    .filter((item): item is MatchCase => item !== null)
-    .slice(0, 3);
-}
-
-function normalizeSourceScope(value: unknown): IndustryAnswerResponse["sourceScope"] {
-  const text = String(value || "").trim();
-  if (text === "based_on_local_cases" || text === "extended_reasoning" || text === "no_direct_match") {
-    return text;
-  }
-  return "extended_reasoning";
-}
+const BACKEND_BASE = (
+  process.env.FASTAPI_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://127.0.0.1:10087"
+)
+  .trim()
+  .replace(/\/+$/, "");
 
 export async function POST(request: NextRequest) {
+  const started = Date.now();
   try {
-    const body = await request.json().catch(() => null);
-    const query = typeof body?.query === "string" ? body.query.trim() : "";
-    if (!query) {
-      return NextResponse.json({ error: "query is required" }, { status: 400 });
-    }
-    if (query.length > 2000) {
-      return NextResponse.json({ error: "query is too long" }, { status: 400 });
+    const bodyText = await request.text();
+    if (!bodyText.trim()) {
+      return NextResponse.json({ detail: "request body is required" }, { status: 400 });
     }
 
-    const { parsed, raw } = await callDeepSeekJson({
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(query) },
-      ],
-      temperature: 0.2,
-      maxTokens: 1800,
-      responseFormat: true,
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
+    const response = await fetch(`${BACKEND_BASE}/api/industry/answer`, {
+      method: "POST",
+      headers: {
+        "Content-Type": request.headers.get("content-type") || "application/json; charset=utf-8",
+        Accept: "application/json",
+      },
+      body: bodyText,
+      cache: "no-store",
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
-    const source = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-    const answer = String(source.answer || "").trim();
-    if (!answer) {
-      throw new Error(`GLM returned empty answer: ${String(raw).slice(0, 300)}`);
-    }
-
-    const response: IndustryAnswerResponse = {
-      query,
-      answer,
-      relatedKnowledgePoints: normalizeStringArray(source.relatedKnowledgePoints),
-      matchedCases: normalizeMatchedCases(source.matchedCases),
-      researchFrontiers: normalizeStringArray(source.researchFrontiers),
-      industryApplications: normalizeStringArray(source.industryApplications),
-      requiredAbilities: normalizeStringArray(source.requiredAbilities),
-      recommendedKeywords: normalizeStringArray(source.recommendedKeywords),
-      nextTasks: normalizeStringArray(source.nextTasks),
-      sourceScope: normalizeSourceScope(source.sourceScope),
-      disclaimer: String(source.disclaimer || "本回答仅用于学习与科研训练，不构成医疗、临床或商业决策建议。").trim(),
-      _source: "glm",
-    };
-
-    return NextResponse.json(response);
+    const responseText = await response.text();
+    return new NextResponse(responseText, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        "Content-Type": response.headers.get("content-type") || "application/json; charset=utf-8",
+        "X-Upstream-Duration-Ms": String(Date.now() - started),
+      },
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Industry answer generation failed";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const message = error instanceof Error ? error.message : "Industry answer proxy failed";
+    return NextResponse.json(
+      {
+        detail: message,
+        backend: BACKEND_BASE,
+        duration_ms: Date.now() - started,
+      },
+      { status: 502 },
+    );
   }
+}
+
+export async function GET(request: NextRequest) {
+  const query = request.nextUrl.searchParams.get("query") || "";
+  return POST(
+    new NextRequest(request.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ query }),
+    }),
+  );
 }

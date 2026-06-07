@@ -79,7 +79,7 @@ class PaperService:
         if direction: q = q.filter(ResearchPaper.direction == direction)
         if difficulty: q = q.filter(ResearchPaper.reading_difficulty == difficulty)
         total = q.count()
-        items = q.order_by(ResearchPaper.suggested_reading_order, ResearchPaper.year.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = q.order_by(ResearchPaper.created_at.desc(), ResearchPaper.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
         return items, total
 
     def get_paper(self, paper_id: int) -> ResearchPaper | None:
@@ -245,9 +245,13 @@ class PaperService:
             not extracted_text
             or extracted_text.startswith("GLM file parser")
             or extracted_text.startswith("GLM API key")
+            or extracted_text.startswith("GLM direct PDF parsing failed")
+            or extracted_text.startswith("GLM layout parsing failed")
+            or "GLM direct PDF parsing failed" in extracted_text[:500]
+            or "GLM layout parsing failed" in extracted_text[:500]
         ):
             storage_path.unlink(missing_ok=True)
-            raise RuntimeError("Failed to extract readable text from PDF")
+            raise RuntimeError(extracted_text or "Failed to extract readable text from PDF")
 
         payload = self._build_import_payload(
             filename=filename,
@@ -345,11 +349,29 @@ class PaperService:
         }
 
     def _extract_fallback_title(self, filename: str, lines: list[str]) -> str:
+        file_title = Path(filename).stem.replace("_", " ").strip()
         for line in lines[:8]:
             compact = " ".join(line.split())
-            if 8 <= len(compact) <= 300:
+            if self._is_usable_fallback_title(compact):
                 return compact
-        return Path(filename).stem.replace("_", " ").strip() or "Imported Paper"
+        return file_title or "Imported Paper"
+
+    def _is_usable_fallback_title(self, text: str) -> bool:
+        if not 8 <= len(text) <= 300:
+            return False
+        lowered = text.lower()
+        blocked_fragments = (
+            "<div",
+            "</div",
+            "![](",
+            "page=",
+            "bbox=",
+            "# 获奖证书",
+            "获奖证书",
+            "同学：",
+            "特颁此证",
+        )
+        return not any(fragment in lowered for fragment in blocked_fragments)
 
     def _join_excerpt(self, lines: list[str], max_chars: int) -> str:
         if not lines:

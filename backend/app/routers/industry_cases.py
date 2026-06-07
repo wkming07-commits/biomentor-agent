@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -6,6 +7,11 @@ from app.schemas import IndustryCaseOut, IndustryCaseCreate
 from app.services.cases import IndustryCaseService
 
 router = APIRouter(prefix="/api/industry", tags=["industry-cases"])
+
+
+class IndustryAnswerRequest(BaseModel):
+    query: str
+
 
 
 @router.get("/cases", response_model=dict)
@@ -67,3 +73,16 @@ def create_case(data: IndustryCaseCreate, db: Session = Depends(get_db)):
 def case_answer(case_key: str = Query(None), query: str = Query(...), db: Session = Depends(get_db)):
     service = IndustryCaseService(db)
     return service.get_case_answer_by_key(case_key, query)
+
+@router.post("/answer")
+def post_case_answer(payload: IndustryAnswerRequest, db: Session = Depends(get_db)):
+    query = (payload.query or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query is required")
+    if len(query) > 2000:
+        raise HTTPException(status_code=400, detail="query is too long")
+    service = IndustryCaseService(db)
+    try:
+        return service.generate_industry_answer(query)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

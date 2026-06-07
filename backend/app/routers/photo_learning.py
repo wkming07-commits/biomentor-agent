@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.database import get_db
 from app.schemas import PhotoLearningRequest, PhotoLearningResponse
@@ -25,7 +26,7 @@ async def ocr_upload(file: UploadFile = File(...)):
     if len(data) > 50 * 1024 * 1024:
         raise HTTPException(400, "文件超过 50MB 限制")
 
-    result = ocr_service.extract(data, mime, file.filename)
+    result = await run_in_threadpool(ocr_service.extract, data, mime, file.filename)
     if not result.get("success"):
         raise HTTPException(502, str(result.get("error", "GLM extraction failed")))
     return result
@@ -59,7 +60,7 @@ async def full_pipeline(file: UploadFile = File(...), db: Session = Depends(get_
 
     service = PhotoLearningService(db)
     try:
-        return service.analyze_uploaded_file(data, mime, file.filename)
+        return await run_in_threadpool(service.analyze_uploaded_file, data, mime, file.filename)
     except RuntimeError as exc:
         raise HTTPException(502, str(exc)) from exc
 

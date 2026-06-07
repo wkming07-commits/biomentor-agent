@@ -93,7 +93,143 @@ class IndustryCaseService:
             case = self.get_case_by_key(case_key)
             if case:
                 return self.get_case_answer(case.id, query)
-        return self._general_answer(query)
+        return self.generate_industry_answer(query)
+
+    def generate_industry_answer(self, query: str) -> dict[str, Any]:
+        clean_query = (query or "").strip()
+        if not clean_query:
+            raise RuntimeError("query is required")
+        if not self.llm.available:
+            raise RuntimeError("GLM API key is not configured")
+
+        matched_cases = self.search_cases(clean_query, limit=6)
+        if len(matched_cases) < 6:
+            existing_ids = [case.id for case in matched_cases]
+            recent_query = self.db.query(IndustryCase)
+            if existing_ids:
+                recent_query = recent_query.filter(~IndustryCase.id.in_(existing_ids))
+            matched_cases.extend(recent_query.order_by(IndustryCase.created_at.desc()).limit(6 - len(matched_cases)).all())
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string"},
+                "relatedKnowledgePoints": {"type": "array", "items": {"type": "string"}},
+                "matchedCases": {"type": "array", "items": {"type": "object"}},
+                "researchFrontiers": {"type": "array", "items": {"type": "string"}},
+                "industryApplications": {"type": "array", "items": {"type": "string"}},
+                "requiredAbilities": {"type": "array", "items": {"type": "string"}},
+                "recommendedKeywords": {"type": "array", "items": {"type": "string"}},
+                "nextTasks": {"type": "array", "items": {"type": "string"}},
+                "sourceScope": {"type": "string"},
+                "disclaimer": {"type": "string"},
+            },
+            "required": [
+                "answer",
+                "relatedKnowledgePoints",
+                "matchedCases",
+                "researchFrontiers",
+                "industryApplications",
+                "requiredAbilities",
+                "recommendedKeywords",
+                "nextTasks",
+                "sourceScope",
+                "disclaimer",
+            ],
+        }
+        system_prompt = (
+            "You are a life-science industry case tutor. Return exactly one JSON object in Simplified Chinese. "
+            "Ground the answer in the supplied local case context when possible. "
+            "If direct local matches are weak, set sourceScope to extended_reasoning. "
+            "Do not output markdown. Do not use templates."
+        )
+        user_prompt = "\n".join(
+            [
+                f"User query: {clean_query}",
+                "",
+                "Local case context:",
+                self._build_case_context(matched_cases) or "No local case context is available.",
+                "",
+                "Required output fields: answer, relatedKnowledgePoints, matchedCases, researchFrontiers,",
+                "industryApplications, requiredAbilities, recommendedKeywords, nextTasks, sourceScope, disclaimer.",
+                "matchedCases items should use ids from the local case context only.",
+            ]
+        )
+        try:
+            data = self.llm.generate_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                schema=schema,
+                temperature=0.2,
+                max_tokens=1600,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"GLM industry answer failed: {exc}") from exc
+
+        response = self._normalize_industry_answer(clean_query, data, matched_cases)
+        if not response["answer"]:
+            raise RuntimeError("GLM industry answer returned empty answer")
+        return response
+
+    def _build_case_context(self, cases: list[IndustryCase]) -> str:
+        parts: list[str] = []
+        for index, case in enumerate(cases[:8], 1):
+            parts.append(
+                "\n".join(
+                    [
+                        f"Case {index}: [{case.case_key}] {case.title}",
+                        f"Industry Direction: {case.industry_direction or ''}",
+                        f"Core Problem: {case.core_problem or case.problem_statement or ''}",
+                        f"Research Foundation: {case.research_foundation or ''}",
+                        f"Application Value: {case.application_value or ''}",
+                        f"Knowledge Points: {', '.join(self._string_list(case.knowledge_points))}",
+                        f"Required Abilities: {', '.join(self._string_list(case.required_abilities))}",
+                        f"Recommended Keywords: {', '.join(self._string_list(case.recommended_keywords))}",
+                        f"Next Research Task: {case.linked_research_task or ''}",
+                    ]
+                )
+            )
+        return "\n\n".join(parts)
+
+    def _normalize_industry_answer(self, query: str, data: dict[str, Any], context_cases: list[IndustryCase]) -> dict[str, Any]:
+        source = data if isinstance(data, dict) else {}
+        valid_cases = {case.case_key: case for case in context_cases if case.case_key}
+        matched: list[dict[str, str]] = []
+        raw_cases = source.get("matchedCases")
+        if isinstance(raw_cases, list):
+            for item in raw_cases:
+                if not isinstance(item, dict):
+                    continue
+                case_key = str(item.get("id") or item.get("case_key") or "").strip()
+                if case_key not in valid_cases:
+                    continue
+                case = valid_cases[case_key]
+                reason = str(item.get("reason") or "").strip()
+                matched.append({"id": case.case_key, "title": case.title, "reason": reason})
+                if len(matched) >= 3:
+                    break
+        source_scope = str(source.get("sourceScope") or "").strip()
+        if source_scope not in {"based_on_local_cases", "extended_reasoning", "no_direct_match"}:
+            source_scope = "based_on_local_cases" if matched else "extended_reasoning"
+        return {
+            "query": query,
+            "answer": str(source.get("answer") or "").strip(),
+            "relatedKnowledgePoints": self._string_list(source.get("relatedKnowledgePoints"))[:8],
+            "matchedCases": matched,
+            "researchFrontiers": self._string_list(source.get("researchFrontiers"))[:6],
+            "industryApplications": self._string_list(source.get("industryApplications"))[:6],
+            "requiredAbilities": self._string_list(source.get("requiredAbilities"))[:6],
+            "recommendedKeywords": self._string_list(source.get("recommendedKeywords"))[:8],
+            "nextTasks": self._string_list(source.get("nextTasks"))[:6],
+            "sourceScope": source_scope,
+            "disclaimer": str(source.get("disclaimer") or "Generated by GLM for learning use only.").strip(),
+            "_source": "glm-backend",
+        }
+
+    def _string_list(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip() for item in value if str(item).strip()]
 
     def _general_answer(self, query: str) -> dict[str, Any]:
         """General answer when no specific case is provided. Clearly marked as non-AI."""

@@ -5,7 +5,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import fitz
 import httpx
 
 from app.config import get_settings
@@ -32,7 +31,7 @@ class GLMVisionParserService:
         self.settings = get_settings()
         self.api_key = self.settings.resolved_llm_api_key()
         self.base_url = self.settings.resolved_llm_base_url().rstrip("/")
-        self.vision_model = self.settings.GLM_VISION_MODEL or self.settings.resolved_llm_model()
+        self.vision_model = self.settings.GLM_VISION_MODEL or "glm-4v-flash"
         self.timeout = max(self.settings.GLM_FILE_PARSER_TIMEOUT_SECONDS, 180)
 
     @property
@@ -84,17 +83,42 @@ class GLMVisionParserService:
         try:
             return self._call_layout_parsing(file_bytes=file_bytes, filename=filename or "upload.pdf"), "glm-layout-parsing:pdf"
         except Exception as layout_error:
-            try:
-                text = self._call_vision_pdf(file_bytes)
-                return text, f"glm-vision:{self.vision_model}"
-            except Exception as vision_error:
-                raise RuntimeError(f"{layout_error}; fallback vision failed: {vision_error}") from vision_error
+            raise RuntimeError(f"GLM direct PDF parsing failed: {layout_error}") from layout_error
+
+    def _vision_model_candidates(self) -> list[str]:
+        candidates: list[str] = []
+        for item in (
+            self.vision_model,
+            "glm-4v-flash",
+            "glm-4.6v-flash",
+        ):
+            clean = (item or "").strip()
+            if clean and clean not in candidates:
+                candidates.append(clean)
+        return candidates
+
+    def _is_non_retryable_error(self, error: Exception) -> bool:
+        text = str(error or "").lower()
+        return any(
+            marker in text
+            for marker in (
+                "401",
+                "403",
+                "unauthorized",
+                "forbidden",
+                "invalid api key",
+                "insufficient balance",
+                "insufficient_balance",
+                "quota",
+            )
+        )
 
     def _call_layout_parsing(self, *, file_bytes: bytes, filename: str) -> str:
         encoded = base64.b64encode(file_bytes).decode("ascii")
+        mime_type = self._guess_mime_type(filename) or "application/octet-stream"
         payload = {
             "model": "glm-ocr",
-            "file": encoded,
+            "file": f"data:{mime_type};base64,{encoded}",
             "request_id": f"biomentor-{int(time.time() * 1000)}",
         }
 
@@ -110,7 +134,8 @@ class GLMVisionParserService:
                         },
                         json=payload,
                     )
-                response.raise_for_status()
+                if response.is_error:
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text[:800]}")
                 data = response.json()
                 text = self._extract_text(data).strip()
                 if text:
@@ -126,75 +151,53 @@ class GLMVisionParserService:
 
         raise RuntimeError(f"GLM layout parsing failed: {last_error}") from last_error
 
-    def _call_vision_pdf(self, file_bytes: bytes) -> str:
-        document = fitz.open(stream=file_bytes, filetype="pdf")
-        page_texts: list[str] = []
-        max_pages = 12
-        char_budget = 20000
-
-        for page_index in range(min(document.page_count, max_pages)):
-            page = document.load_page(page_index)
-            pix = page.get_pixmap(matrix=fitz.Matrix(1.8, 1.8), alpha=False)
-            image_bytes = pix.tobytes("png")
-            page_text = self._call_vision_ocr(
-                prompt=(
-                    f"这是 PDF 的第 {page_index + 1} 页。"
-                    "请准确提取本页全部可见文字，直接输出正文，不要解释，不要总结，不要补充图片中没有的信息。"
-                ),
-                image_bytes=image_bytes,
-                mime_type="image/png",
-            )
-            if page_text.strip():
-                page_texts.append(f"--- page {page_index + 1} ---\n{page_text.strip()}")
-            if sum(len(item) for item in page_texts) >= char_budget:
-                break
-
-        merged = "\n\n".join(page_texts).strip()
-        if not merged:
-            raise RuntimeError("GLM vision PDF fallback returned empty content")
-        return merged[:char_budget]
-
     def _call_vision_ocr(self, *, prompt: str, image_bytes: bytes, mime_type: str) -> str:
         encoded = base64.b64encode(image_bytes).decode("ascii")
-        payload = {
-            "model": self.vision_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}},
-                    ],
-                }
-            ],
-            "temperature": 0.1,
-            "max_tokens": 2200,
-        }
-
         last_error: Exception | None = None
-        for attempt in range(3):
-            try:
-                with httpx.Client(timeout=self.timeout, trust_env=False) as client:
-                    response = client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json=payload,
-                    )
-                response.raise_for_status()
-                data = response.json()
-                message = ((data.get("choices") or [{}])[0]).get("message") or {}
-                content = str(message.get("content", "") or "").strip()
-                if content:
-                    return content
-                raise RuntimeError(self._extract_message(data) or "GLM vision returned empty content")
-            except Exception as exc:
-                last_error = exc
-                time.sleep(self._retry_delay(last_error, attempt))
 
-        raise RuntimeError(f"GLM vision call failed: {last_error}") from last_error
+        for model_name in self._vision_model_candidates():
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}},
+                        ],
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": 2200,
+            }
+
+            for attempt in range(3):
+                try:
+                    with httpx.Client(timeout=self.timeout, trust_env=False) as client:
+                        response = client.post(
+                            f"{self.base_url}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {self.api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json=payload,
+                        )
+                    if response.is_error:
+                        raise RuntimeError(f"HTTP {response.status_code}: {response.text[:800]}")
+                    data = response.json()
+                    message = ((data.get("choices") or [{}])[0]).get("message") or {}
+                    content = str(message.get("content", "") or "").strip()
+                    if content:
+                        return content
+                    raise RuntimeError(self._extract_message(data) or "GLM vision returned empty content")
+                except Exception as exc:
+                    last_error = exc
+                    if self._is_non_retryable_error(exc):
+                        raise RuntimeError(f"GLM vision call failed: {exc}") from exc
+                    if attempt < 2:
+                        time.sleep(self._retry_delay(last_error, attempt))
+
+        raise RuntimeError(f"GLM vision call failed after trying models {', '.join(self._vision_model_candidates())}: {last_error}") from last_error
 
     def _extract_text(self, payload: object) -> str:
         texts: list[str] = []

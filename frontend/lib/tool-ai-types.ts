@@ -6,7 +6,7 @@ export interface ToolChatMessage {
   role: "assistant" | "user";
   content: string;
   quickQuestions?: string[];
-  source?: "glm" | "local_fallback";
+  source?: "glm" | "deepseek" | "local_fallback";
 }
 
 export interface ToolContextSummary {
@@ -31,5 +31,5 @@ export interface ToolAiResponse {
   answer: string;
   quickQuestions: string[];
   disclaimer: string;
-  source?: "glm" | "local_fallback";
+  source?: "glm" | "deepseek" | "local_fallback";
 }

@@ -1,4 +1,7 @@
-export const PHOTO_PIPELINE_BACKEND = "/gateway";
+export const PHOTO_PIPELINE_BACKEND = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "/gateway"
+).replace(/\/+$/, "");
 
 export interface BackendQuestionOption {
   label: string;
@@ -24,6 +27,11 @@ export interface PhotoLearningAnalysis {
     name: string;
     category?: string;
     definition?: string;
+  }>;
+  knowledge_points?: Array<{
+    name: string;
+    description?: string;
+    category?: string;
   }>;
   matched_papers: Array<{
     id: number;
