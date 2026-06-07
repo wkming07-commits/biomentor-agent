@@ -102,7 +102,7 @@ class PhotoLearningService:
                 mime_type=mime_type,
                 filename=filename,
             )
-            transcribed_text = str(llm_result.get("transcribed_text", "")).strip()
+            transcribed_text = self._analysis_text_from_result(llm_result)
             if not transcribed_text:
                 raise RuntimeError("GLM visual analysis did not return transcribed text")
 
@@ -128,7 +128,7 @@ class PhotoLearningService:
                 file_bytes=file_bytes,
                 filename=filename,
             )
-            transcribed_text = str(llm_result.get("transcribed_text", "")).strip()
+            transcribed_text = self._analysis_text_from_result(llm_result)
             if not transcribed_text:
                 raise RuntimeError("GLM PDF analysis did not return transcribed text")
 
@@ -157,6 +157,14 @@ class PhotoLearningService:
             char_count=int(extracted.get("char_count", 0) or 0),
             filename=str(extracted.get("filename", filename)),
         )
+
+    def _analysis_text_from_result(self, llm_result: dict[str, Any]) -> str:
+        for key in ("transcribed_text", "raw_text", "source_text", "content", "summary"):
+            value = str(llm_result.get(key) or "").strip()
+            if value:
+                return value
+        keywords = self._normalize_string_list(llm_result.get("keywords"))
+        return ", ".join(keywords)
 
     def analyze(self, text: str, image_base64: str | None = None) -> dict[str, Any]:
         del image_base64
