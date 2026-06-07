@@ -97,30 +97,21 @@ class PhotoLearningService:
         file_kind = self._resolve_file_kind(mime_type, filename)
 
         if file_kind == "image":
-            llm_result = self._run_visual_analysis(
-                file_bytes=file_bytes,
-                mime_type=mime_type,
-                filename=filename,
-            )
-            transcribed_text = self._analysis_text_from_result(llm_result)
-            if not transcribed_text:
-                raise RuntimeError("GLM visual analysis did not return transcribed text")
+            extracted = self.ocr_service.extract(file_bytes, mime_type, filename)
+            if not extracted.get("success"):
+                raise RuntimeError(str(extracted.get("error", "GLM image extraction failed")))
 
-            try:
-                analysis = self._build_analysis(transcribed_text, llm_result)
-            except RuntimeError:
-                supplemental = self._run_text_analysis(transcribed_text)
-                merged = dict(llm_result)
-                merged.update(supplemental)
-                merged["transcribed_text"] = transcribed_text
-                analysis = self._build_analysis(transcribed_text, merged)
+            extracted_text = str(extracted.get("text", "")).strip()
+            if not extracted_text:
+                raise RuntimeError("GLM image parser returned empty text")
 
+            analysis = self.analyze(extracted_text)
             return self._attach_processing_metadata(
                 analysis,
                 file_kind=file_kind,
-                engine=f"glm-vision-analysis:{self.llm.settings.GLM_VISION_MODEL or 'glm-4v-flash'}",
-                char_count=len(transcribed_text),
-                filename=filename,
+                engine=str(extracted.get("engine", "glm-image-parser")),
+                char_count=int(extracted.get("char_count", 0) or len(extracted_text)),
+                filename=str(extracted.get("filename", filename)),
             )
 
         if file_kind == "pdf":
@@ -184,7 +175,7 @@ class PhotoLearningService:
             try:
                 result = self.llm.generate_json(
                     system_prompt=PHOTO_ANALYSIS_SYSTEM,
-                    user_prompt=PHOTO_ANALYSIS_USER.format(text=text[:limit]),
+                    user_prompt=PHOTO_ANALYSIS_USER.format(fileName="uploaded-material", pdfText=text[:limit], text=text[:limit]),
                     schema=PHOTO_ANALYSIS_SCHEMA,
                     temperature=0.2,
                     max_tokens=2200,
@@ -324,6 +315,9 @@ class PhotoLearningService:
 
     def _build_analysis(self, text: str, llm_result: dict[str, Any]) -> dict[str, Any]:
         llm_keywords = self._normalize_string_list(llm_result.get("keywords"))
+        knowledge_points = self._normalize_knowledge_points(llm_result.get("knowledge_points"))
+        if not llm_keywords:
+            llm_keywords = [item["name"] for item in knowledge_points if item.get("name")]
         dict_keywords = self._dict_extract(text)
         heuristic_keywords = self._heuristic_extract(text)
         all_keywords = list(dict.fromkeys(llm_keywords + dict_keywords + heuristic_keywords))[:12]
@@ -331,6 +325,12 @@ class PhotoLearningService:
             raise RuntimeError("GLM analysis did not return usable keywords")
 
         summary = str(llm_result.get("summary") or llm_result.get("overview") or llm_result.get("core_summary") or "").strip()
+        if not summary and knowledge_points:
+            summary = "?".join(
+                item.get("description") or item.get("name") or ""
+                for item in knowledge_points[:3]
+                if item.get("description") or item.get("name")
+            ).strip()
         if not summary:
             raise RuntimeError("GLM analysis did not return a summary")
 
@@ -365,6 +365,7 @@ class PhotoLearningService:
             "matched_tasks": [],
             "summary": summary,
             "learning_suggestions": learning_suggestions[:4],
+            "knowledge_points": knowledge_points[:8],
             "questions": questions[:5],
         }
 
@@ -397,6 +398,21 @@ class PhotoLearningService:
         if mime_type in {"text/plain", "text/markdown"} or ext in {".txt", ".md"}:
             return "text"
         return "unknown"
+
+    def _normalize_knowledge_points(self, value: Any) -> list[dict[str, str]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, str]] = []
+        for item in value:
+            if isinstance(item, dict):
+                name = str(item.get("name") or item.get("title") or "").strip()
+                description = str(item.get("description") or item.get("definition") or "").strip()
+            else:
+                name = str(item or "").strip()
+                description = ""
+            if name:
+                normalized.append({"name": name, "description": description})
+        return normalized
 
     def _normalize_string_list(self, value: Any) -> list[str]:
         if not isinstance(value, list):
