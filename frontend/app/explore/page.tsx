@@ -393,9 +393,9 @@ export default function ExplorePage() {
                               const detail = item as { error_point?: string; error_reason?: string; training_method?: string };
                               return (
                                 <>
-                                  <p className="text-sm font-medium text-gray-800">??????{detail.error_point}</p>
-                                  <p className="text-sm text-gray-600 mt-1">???????{detail.error_reason}</p>
-                                  <p className="text-sm text-gray-600 mt-1">????????{detail.training_method}</p>
+                                  <p className="text-sm font-medium text-gray-800">{detail.error_point}</p>
+                                  <p className="text-sm text-gray-600 mt-1">{detail.error_reason}</p>
+                                  <p className="text-sm text-gray-600 mt-1">{detail.training_method}</p>
                                 </>
                               );
                             }
