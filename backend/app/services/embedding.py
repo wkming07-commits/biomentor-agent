@@ -1,15 +1,17 @@
 """
-Embedding Service — vector storage & retrieval with ChromaDB.
+Vector storage and retrieval service for RAG.
 
-Provides:
-- Document chunk embedding and indexing
-- Vector similarity search
-- Hybrid search (keyword + vector fusion)
-- Collection management per domain (materials, papers, cases, questions)
+The public interface is intentionally stable for the rest of the backend:
+index_chunks, search, hybrid_search, delete_by_where and collection_stats.
+Set VECTOR_BACKEND=chroma or VECTOR_BACKEND=milvus to choose the storage engine.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
+import re
 import uuid
 from typing import Any
 
@@ -19,9 +21,12 @@ settings = get_settings()
 
 
 class EmbeddingService:
-    """Manages ChromaDB collections for RAG vector search."""
+    """Manages vector collections for RAG search."""
 
     def __init__(self):
+        self.backend = (settings.VECTOR_BACKEND or "chroma").strip().lower()
+        if self.backend not in {"chroma", "milvus"}:
+            self.backend = "chroma"
         self._client: Any | None = None
         self._collections: dict[str, Any] = {}
         self._import_error: Exception | None = None
@@ -30,13 +35,7 @@ class EmbeddingService:
     def client(self) -> Any:
         if self._client is None:
             try:
-                import chromadb
-                from chromadb.config import Settings as ChromaSettings
-
-                self._client = chromadb.PersistentClient(
-                    path=settings.CHROMA_PERSIST_DIR,
-                    settings=ChromaSettings(anonymized_telemetry=False),
-                )
+                self._client = self._create_milvus_client() if self.backend == "milvus" else self._create_chroma_client()
             except Exception as exc:
                 self._import_error = exc
                 raise
@@ -50,9 +49,29 @@ class EmbeddingService:
         except Exception:
             return False
 
-    # ── Collection Management ─────────────────────────────────────
+    def _create_chroma_client(self) -> Any:
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+
+        return chromadb.PersistentClient(
+            path=settings.CHROMA_PERSIST_DIR,
+            settings=ChromaSettings(anonymized_telemetry=False),
+        )
+
+    def _create_milvus_client(self) -> Any:
+        from pymilvus import MilvusClient
+
+        kwargs: dict[str, Any] = {"uri": settings.MILVUS_URI}
+        if settings.MILVUS_TOKEN:
+            kwargs["token"] = settings.MILVUS_TOKEN
+        if settings.MILVUS_DB_NAME:
+            kwargs["db_name"] = settings.MILVUS_DB_NAME
+        return MilvusClient(**kwargs)
 
     def get_collection(self, name: str) -> Any:
+        if self.backend == "milvus":
+            return self._ensure_milvus_collection(name)
+
         if name not in self._collections:
             try:
                 self._collections[name] = self.client.get_collection(name)
@@ -63,7 +82,29 @@ class EmbeddingService:
                 )
         return self._collections[name]
 
-    # ── Indexing ──────────────────────────────────────────────────
+    def _ensure_milvus_collection(self, name: str) -> str:
+        if name in self._collections:
+            return name
+
+        from pymilvus import DataType, MilvusClient
+
+        client: MilvusClient = self.client
+        if not client.has_collection(collection_name=name):
+            schema = MilvusClient.create_schema(auto_id=False, enable_dynamic_field=True)
+            schema.add_field(field_name="id", datatype=DataType.VARCHAR, is_primary=True, max_length=512)
+            schema.add_field(field_name="content", datatype=DataType.VARCHAR, max_length=65535)
+            schema.add_field(field_name="metadata_json", datatype=DataType.VARCHAR, max_length=65535)
+            schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=settings.MILVUS_VECTOR_DIM)
+
+            index_params = client.prepare_index_params()
+            index_params.add_index(
+                field_name="vector",
+                index_type="AUTOINDEX",
+                metric_type=settings.MILVUS_METRIC_TYPE,
+            )
+            client.create_collection(collection_name=name, schema=schema, index_params=index_params)
+        self._collections[name] = name
+        return name
 
     def index_chunks(
         self,
@@ -73,48 +114,63 @@ class EmbeddingService:
         ids: list[str] | None = None,
         embeddings: list[list[float]] | None = None,
     ) -> list[str]:
-        """Index document chunks into a vector collection.
-
-        If embeddings are not provided, ChromaDB will generate them using its
-        built-in embedding function (requires configured embedding backend).
-
-        Returns the list of chunk IDs.
-        """
+        """Index document chunks into a vector collection and return chunk IDs."""
         if not chunks:
             return []
-        if not self.available:
-            return ids or []
-
-        coll = self.get_collection(collection_name)
-
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in chunks]
         if metadatas is None:
             metadatas = [{} for _ in chunks]
+        if not self.available:
+            return ids
 
-        coll.add(
-            ids=ids,
-            documents=chunks,
-            metadatas=metadatas,
-            embeddings=embeddings,
-        )
+        if self.backend == "milvus":
+            return self._index_chunks_milvus(collection_name, chunks, metadatas, ids, embeddings)
+
+        coll = self.get_collection(collection_name)
+        coll.add(ids=ids, documents=chunks, metadatas=metadatas, embeddings=embeddings)
+        return ids
+
+    def _index_chunks_milvus(
+        self,
+        collection_name: str,
+        chunks: list[str],
+        metadatas: list[dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]] | None,
+    ) -> list[str]:
+        self.get_collection(collection_name)
+        vectors = embeddings or [self._embed_text(chunk) for chunk in chunks]
+        rows = []
+        for idx, chunk in enumerate(chunks):
+            metadata = metadatas[idx] if idx < len(metadatas) and isinstance(metadatas[idx], dict) else {}
+            row: dict[str, Any] = {
+                "id": ids[idx],
+                "content": str(chunk)[:65000],
+                "metadata_json": self._json_dumps(metadata)[:65000],
+                "vector": self._coerce_vector(vectors[idx] if idx < len(vectors) else None),
+            }
+            row.update(self._dynamic_metadata_fields(metadata))
+            rows.append(row)
+        if rows:
+            self.client.insert(collection_name=collection_name, data=rows)
+            try:
+                self.client.flush(collection_name=collection_name)
+            except Exception:
+                pass
         return ids
 
     def delete_by_material(self, collection_name: str, material_id: int) -> int:
         """Delete all chunks belonging to a material."""
-        if not self.available:
-            return 0
-        coll = self.get_collection(collection_name)
-        results = coll.get(where={"material_id": material_id})
-        if results["ids"]:
-            coll.delete(ids=results["ids"])
-            return len(results["ids"])
-        return 0
+        return self.delete_by_where(collection_name, {"material_id": material_id})
 
     def delete_by_where(self, collection_name: str, where: dict[str, Any]) -> int:
         """Delete all chunks matching a metadata filter."""
         if not self.available:
             return 0
+        if self.backend == "milvus":
+            return self._delete_by_where_milvus(collection_name, where)
+
         coll = self.get_collection(collection_name)
         results = coll.get(where=where)
         ids = results.get("ids") or []
@@ -123,7 +179,17 @@ class EmbeddingService:
             return len(ids)
         return 0
 
-    # ── Search ────────────────────────────────────────────────────
+    def _delete_by_where_milvus(self, collection_name: str, where: dict[str, Any]) -> int:
+        self.get_collection(collection_name)
+        expr = self._milvus_filter(where)
+        if not expr:
+            return 0
+        rows = self.client.query(collection_name=collection_name, filter=expr, output_fields=["id"], limit=16384)
+        ids = [str(row.get("id")) for row in rows if row.get("id")]
+        if not ids:
+            return 0
+        self.client.delete(collection_name=collection_name, ids=ids)
+        return len(ids)
 
     def search(
         self,
@@ -133,23 +199,18 @@ class EmbeddingService:
         where: dict[str, Any] | None = None,
         query_embedding: list[float] | None = None,
     ) -> list[dict[str, Any]]:
-        """Vector similarity search in a collection.
-
-        Returns list of {id, content, metadata, score}.
-        """
+        """Vector similarity search returning {id, content, metadata, score}."""
         if not self.available:
             return []
-        coll = self.get_collection(collection_name)
+        if self.backend == "milvus":
+            return self._search_milvus(collection_name, query, top_k, where, query_embedding)
 
-        kwargs: dict[str, Any] = {
-            "query_texts": [query],
-            "n_results": top_k,
-        }
+        coll = self.get_collection(collection_name)
+        kwargs: dict[str, Any] = {"query_texts": [query], "n_results": top_k}
         if where:
             kwargs["where"] = where
         if query_embedding:
             kwargs["query_embeddings"] = [query_embedding]
-
         results = coll.query(**kwargs)
 
         hits: list[dict[str, Any]] = []
@@ -163,6 +224,41 @@ class EmbeddingService:
                 })
         return hits
 
+    def _search_milvus(
+        self,
+        collection_name: str,
+        query: str,
+        top_k: int,
+        where: dict[str, Any] | None,
+        query_embedding: list[float] | None,
+    ) -> list[dict[str, Any]]:
+        self.get_collection(collection_name)
+        vector = self._coerce_vector(query_embedding or self._embed_text(query))
+        search_kwargs: dict[str, Any] = {
+            "collection_name": collection_name,
+            "data": [vector],
+            "anns_field": "vector",
+            "limit": top_k,
+            "output_fields": ["content", "metadata_json"],
+            "search_params": {"metric_type": settings.MILVUS_METRIC_TYPE, "params": {}},
+        }
+        expr = self._milvus_filter(where)
+        if expr:
+            search_kwargs["filter"] = expr
+        results = self.client.search(**search_kwargs)
+
+        hits: list[dict[str, Any]] = []
+        for hit in (results[0] if results else []):
+            entity = hit.get("entity") or {}
+            metadata = self._json_loads(entity.get("metadata_json") or "{}")
+            hits.append({
+                "id": str(hit.get("id") or entity.get("id") or ""),
+                "content": entity.get("content", ""),
+                "metadata": metadata,
+                "score": float(hit.get("distance", 0.0) or 0.0),
+            })
+        return hits
+
     def hybrid_search(
         self,
         collection_name: str,
@@ -171,16 +267,11 @@ class EmbeddingService:
         where: dict[str, Any] | None = None,
         keyword_weight: float = 0.3,
     ) -> list[dict[str, Any]]:
-        """Hybrid search combining vector similarity with keyword matching.
-
-        Falls back to pure vector search when keyword matches are unavailable.
-        """
+        """Hybrid search combining vector similarity with keyword matching."""
         vector_results = self.search(collection_name, query, top_k * 2, where)
-
         if not vector_results:
             return []
 
-        # Boost results that contain exact query keywords
         query_terms = set(query.lower().split())
         for hit in vector_results:
             content_lower = hit["content"].lower()
@@ -191,20 +282,93 @@ class EmbeddingService:
         vector_results.sort(key=lambda h: h.get("score", 0), reverse=True)
         return vector_results[:top_k]
 
-    # ── Collection Stats ──────────────────────────────────────────
-
     def collection_stats(self, name: str) -> dict[str, Any]:
         """Get statistics for a collection."""
         try:
+            if self.backend == "milvus":
+                self.get_collection(name)
+                stats = self.client.get_collection_stats(collection_name=name)
+                count = stats.get("row_count") or stats.get("num_entities") or stats.get("count") or 0
+                return {"name": name, "backend": "milvus", "count": int(count)}
+
             coll = self.get_collection(name)
-            return {
-                "name": name,
-                "count": coll.count(),
-            }
-        except Exception:
-            return {"name": name, "count": 0, "error": "unavailable"}
+            return {"name": name, "backend": "chroma", "count": coll.count()}
+        except Exception as exc:
+            return {"name": name, "backend": self.backend, "count": 0, "error": str(exc) or "unavailable"}
 
     def list_collections(self) -> list[str]:
         if not self.available:
             return []
-        return self.client.list_collections()
+        if self.backend == "milvus":
+            return list(self.client.list_collections())
+        return [getattr(item, "name", str(item)) for item in self.client.list_collections()]
+
+    def _embed_text(self, text: str) -> list[float]:
+        """Deterministic local embedding for Milvus when no embedding API is configured."""
+        dim = max(8, int(settings.MILVUS_VECTOR_DIM or 384))
+        tokens = self._tokenize(text)
+        vector = [0.0] * dim
+        for token in tokens:
+            digest = hashlib.blake2b(token.encode("utf-8", errors="ignore"), digest_size=16).digest()
+            index = int.from_bytes(digest[:4], "little") % dim
+            sign = -1.0 if digest[4] & 1 else 1.0
+            weight = 1.0 + min(len(token), 12) / 12.0
+            vector[index] += sign * weight
+        norm = math.sqrt(sum(value * value for value in vector)) or 1.0
+        return [value / norm for value in vector]
+
+    def _tokenize(self, text: str) -> list[str]:
+        value = (text or "").lower()
+        tokens = re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]", value)
+        if not tokens and value.strip():
+            tokens = [value.strip()[:128]]
+        return tokens[:4096]
+
+    def _coerce_vector(self, vector: list[float] | None) -> list[float]:
+        dim = max(8, int(settings.MILVUS_VECTOR_DIM or 384))
+        values = [float(item) for item in (vector or [])[:dim]]
+        if len(values) < dim:
+            values.extend([0.0] * (dim - len(values)))
+        norm = math.sqrt(sum(value * value for value in values)) or 1.0
+        return [value / norm for value in values]
+
+    def _dynamic_metadata_fields(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+        for key, value in metadata.items():
+            if not self._valid_milvus_field_name(key):
+                continue
+            if isinstance(value, (bool, int, float, str)):
+                fields[key] = value
+        return fields
+
+    def _milvus_filter(self, where: dict[str, Any] | None) -> str:
+        if not where:
+            return ""
+        parts = []
+        for key, value in where.items():
+            if not self._valid_milvus_field_name(key):
+                continue
+            if isinstance(value, bool):
+                parts.append(f"{key} == {str(value).lower()}")
+            elif isinstance(value, (int, float)):
+                parts.append(f"{key} == {value}")
+            elif isinstance(value, str):
+                escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+                parts.append(f'{key} == "{escaped}"')
+        return " and ".join(parts)
+
+    def _valid_milvus_field_name(self, key: str) -> bool:
+        return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", str(key or "")))
+
+    def _json_dumps(self, value: Any) -> str:
+        try:
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            return "{}"
+
+    def _json_loads(self, value: str) -> dict[str, Any]:
+        try:
+            loaded = json.loads(value or "{}")
+            return loaded if isinstance(loaded, dict) else {}
+        except Exception:
+            return {}

@@ -5,6 +5,34 @@ This file keeps the production prompts readable and UTF-8 clean so the
 backend does not feed mojibake into GLM.
 """
 
+# Material summary
+
+MATERIAL_SUMMARY_SYSTEM = """You are a life-science course material summarization assistant.
+Return strict JSON only, based on the uploaded material content."""
+
+MATERIAL_SUMMARY_USER = """Material content:
+{content}
+
+Extract the title, subject area, key concepts, knowledge relations, difficulty,
+prerequisites, and teaching suggestions."""
+
+MATERIAL_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "subject_area": {"type": "string"},
+        "key_concepts": {"type": "array", "items": {"type": "string"}},
+        "knowledge_relations": {"type": "array", "items": {"type": "string"}},
+        "difficulty_level": {"type": "string"},
+        "suggested_prerequisites": {"type": "array", "items": {"type": "string"}},
+        "teaching_suggestions": {"type": "array", "items": {"type": "string"}},
+        "word_count": {"type": "integer"},
+        "chunk_count": {"type": "integer"},
+    },
+    "required": ["title", "subject_area", "key_concepts", "teaching_suggestions"],
+    "additionalProperties": False,
+}
+
 # Photo learning / material analysis
 
 PHOTO_ANALYSIS_SYSTEM = """你是一位专业的{subject}大学课程导师，擅长深入分析生命科学领域的专业教材和研究文献内容。请使用专业、严谨的学术语言进行分析。

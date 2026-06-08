@@ -29,12 +29,18 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
 
-    # ---- Vector DB (Chroma) ----
+    # ---- Vector DB ----
+    VECTOR_BACKEND: str = "chroma"  # chroma | milvus
     CHROMA_PERSIST_DIR: str = "./chroma_data"
     CHROMA_COLLECTION_MATERIALS: str = "course_materials"
     CHROMA_COLLECTION_PAPERS: str = "papers"
     CHROMA_COLLECTION_CASES: str = "cases"
     CHROMA_COLLECTION_QUESTIONS: str = "questions"
+    MILVUS_URI: str = "http://127.0.0.1:19530"
+    MILVUS_TOKEN: str = ""
+    MILVUS_DB_NAME: str = "default"
+    MILVUS_VECTOR_DIM: int = 384
+    MILVUS_METRIC_TYPE: str = "COSINE"
 
     # ---- Chunking ----
     CHUNK_SIZE: int = 600
