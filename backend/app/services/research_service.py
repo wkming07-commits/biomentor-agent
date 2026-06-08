@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+import concurrent.futures
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -52,6 +53,7 @@ RESEARCH_TASK_USER_TEMPLATE = """科研主题：{topic}
 
 
 class ResearchService:
+    GROUNDED_GENERATION_TIMEOUT_SECONDS = 8
 
     def __init__(self, db: Session):
         self.db = db
@@ -63,18 +65,32 @@ class ResearchService:
                 return self._case_driven_task(topic, case_key)
             return self._independent_task(topic)
 
-        payload = asyncio.run(
-            GroundedGenerationService(self.db).generate_research_tasks(
-                topic=topic,
-                case_key=case_key,
-                mode=mode,
-                local_builder=lambda: local_builder().model_dump(),
-            )
-        )
+        try:
+            payload = self._run_grounded_generation_with_timeout(topic, case_key, mode, local_builder)
+        except ValueError:
+            raise
+        except Exception:
+            return local_builder()
         response = self._response_from_grounded_payload(topic, case_key, mode, payload, local_builder)
-        if getattr(response, "source_mode", "") != "ai_grounded":
-            raise RuntimeError(getattr(response, "debug_hint", "") or "Research task generation did not use a real AI response")
         return response
+
+    def _run_grounded_generation_with_timeout(self, topic: str, case_key: str | None, mode: str, local_builder) -> dict[str, Any]:
+        def run() -> dict[str, Any]:
+            return asyncio.run(
+                GroundedGenerationService(self.db).generate_research_tasks(
+                    topic=topic,
+                    case_key=case_key,
+                    mode=mode,
+                    local_builder=lambda: local_builder().model_dump(),
+                )
+            )
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = executor.submit(run)
+            return future.result(timeout=self.GROUNDED_GENERATION_TIMEOUT_SECONDS)
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _case_driven_task(self, topic: str, case_key: str) -> ResearchTaskGenerateResponse:
         case = self.db.query(IndustryCase).filter(IndustryCase.case_key == case_key).first()
@@ -529,7 +545,7 @@ class ResearchService:
             expected_outputs=payload.get("expected_outputs") or [t.expected_output or t.output_requirement for t in tasks[:4]],
             mentor_advice=payload.get("mentor_advice") or "",
             seminar_topic=payload.get("seminar_topic") or topic,
-            source_scope=payload.get("debug_hint") or payload.get("source_scope") or "",
+            source_scope=payload.get("source_scope") or payload.get("debug_hint") or "",
             disclaimer=payload.get("disclaimer") or payload.get("limitations") or "生成内容用于科研训练，不等同于完整实验方案。",
             source_mode=payload.get("source_mode") or "local_fallback",
             evidence_mode=payload.get("evidence_mode") or "local_only",

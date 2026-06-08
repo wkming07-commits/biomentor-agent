@@ -39,7 +39,7 @@ class GLMAIProvider:
         self.api_key = settings.resolved_llm_api_key()
         self.base_url = settings.resolved_llm_base_url().rstrip("/")
         self.model = settings.resolved_llm_model() or "glm-4-flash"
-        self.timeout = max(settings.GLM_TIMEOUT_SECONDS, 120)
+        self.timeout = max(1, min(settings.GLM_TIMEOUT_SECONDS or 30, 30))
 
     async def generate_json(
         self,
@@ -49,6 +49,7 @@ class GLMAIProvider:
         temperature: float = 0.2,
         max_tokens: int = 1800,
         retries: int = 2,
+        timeout_seconds: int | float | None = None,
     ) -> AIResult:
         if not self.api_key:
             return AIResult(False, None, "not_configured", "local_fallback")
@@ -69,7 +70,8 @@ class GLMAIProvider:
         }
 
         last_error: AIResult | None = None
-        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+        request_timeout = max(1, min(float(timeout_seconds or self.timeout), 30))
+        async with httpx.AsyncClient(timeout=request_timeout, trust_env=False) as client:
             for attempt in range(retries + 1):
                 try:
                     response = await client.post(

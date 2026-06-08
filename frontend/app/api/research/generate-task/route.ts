@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const mode = body.mode === "case_driven" || caseKey ? "case_driven" : "independent";
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
       const response = await fetch(`${FASTAPI_BACKEND}/api/research/generate-task`, {

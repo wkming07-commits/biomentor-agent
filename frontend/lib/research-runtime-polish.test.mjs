@@ -26,6 +26,7 @@ test("research homepage no longer exposes the default task pool", () => {
 test("research tutor can answer before a task is selected", () => {
   const page = readFrontend("app/research/page.tsx");
   const api = readFrontend("lib/researchApi.ts");
+  const tutorRoute = readFrontend("app/api/research/tutor/route.ts");
   const service = readFileSync(join(frontendRoot, "../backend/app/services/grounded_generation_service.py"), "utf8");
 
   assert.doesNotMatch(page, /if \(!question \|\| !selectedTask \|\| loading\) return/);
@@ -35,6 +36,13 @@ test("research tutor can answer before a task is selected", () => {
   assert.match(page, /selected_task: selectedTask \|\| null/);
   assert.match(api, /selected_task\?: ResearchTaskItem \| null/);
   assert.match(api, /拆成研究方向、关键词、证据来源和可生成的训练任务/);
+  assert.match(api, /产业实例/);
+  assert.match(api, /哈哈哈/);
+  assert.match(api, /有哪些产业案例可参考/);
+  assert.match(tutorRoute, /10000/);
+  assert.match(tutorRoute, /buildLocalTutorFallback/);
+  assert.match(tutorRoute, /产业实例/);
+  assert.match(tutorRoute, /哈哈哈/);
   assert.doesNotMatch(service, /if not selected_task:\s*\n\s*return fallback/);
 });
 

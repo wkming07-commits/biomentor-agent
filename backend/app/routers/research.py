@@ -153,16 +153,24 @@ def generate_task(data: ResearchTaskGenerateRequest, db: Session = Depends(get_d
 @router.post("/tutor")
 async def research_tutor(body: dict, db: Session = Depends(get_db)):
     service = GroundedGenerationService(db)
+    case_id = body.get("case_id") or body.get("case_key") or body.get("caseId")
+    case_title = body.get("case_title") or body.get("caseTitle")
     try:
         return await service.answer_tutor(
             question=str(body.get("question") or ""),
-            case_id=body.get("case_id"),
-            case_title=body.get("case_title"),
+            case_id=case_id,
+            case_title=case_title,
             selected_task=body.get("selected_task") if isinstance(body.get("selected_task"), dict) else None,
             selected_literature=body.get("selected_literature") if isinstance(body.get("selected_literature"), list) else [],
         )
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc)) from exc
+    except Exception:
+        return {
+            "source_mode": "local_fallback",
+            "answer": "当前可以先围绕案例核心问题继续拆解：机制是什么、有哪些产业案例、需要哪些文献支撑、适合生成什么训练任务。建议补充关键词或选择一个科研训练任务后继续提问。",
+            "evidence_used": [],
+            "suggested_next_questions": ["有哪些产业案例可参考？", "这个案例的核心机制是什么？", "需要哪些文献支撑？"],
+            "boundary": "该回答用于科研训练，不替代真实实验设计审批。",
+        }
 
 
 def _default_steps(name: str, category: str) -> list[str]:

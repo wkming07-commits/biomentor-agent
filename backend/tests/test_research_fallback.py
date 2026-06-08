@@ -1,5 +1,6 @@
 from unittest.mock import patch
 from types import SimpleNamespace
+import asyncio
 
 from app.routers.research import generate_task
 from app.schemas import ResearchTaskGenerateRequest
@@ -95,6 +96,47 @@ def test_generate_task_returns_four_tasks_when_deepseek_balance_error():
 def test_generate_task_returns_four_tasks_when_llm_raises_network_error():
     with patch("app.services.research_service.get_llm", return_value=FakeFailingLLM("network timeout")):
         data = _post_generate_task("CAR-T 细胞治疗为什么会出现抗原逃逸？")
+
+    _assert_stable_fallback_response(data)
+
+
+def test_generate_task_returns_fallback_when_grounded_generation_times_out(monkeypatch):
+    async def slow_grounded_generation(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return {"source_mode": "ai_grounded", "tasks": []}
+
+    monkeypatch.setattr(ResearchService, "GROUNDED_GENERATION_TIMEOUT_SECONDS", 0.01)
+    with patch(
+        "app.services.grounded_generation_service.GroundedGenerationService.generate_research_tasks",
+        slow_grounded_generation,
+    ):
+        data = _post_generate_task("mRNA 疫苗为什么需要 LNP？")
+
+    _assert_stable_fallback_response(data)
+
+
+def test_generate_task_returns_fallback_when_grounded_generation_raises():
+    async def failing_grounded_generation(*args, **kwargs):
+        raise RuntimeError("GLM gateway timeout")
+
+    with patch(
+        "app.services.grounded_generation_service.GroundedGenerationService.generate_research_tasks",
+        failing_grounded_generation,
+    ):
+        data = _post_generate_task("mRNA 疫苗为什么需要 LNP？")
+
+    _assert_stable_fallback_response(data)
+
+
+def test_generate_task_accepts_non_ai_grounded_payload_without_raising():
+    async def local_grounded_generation(*args, **kwargs):
+        return kwargs["local_builder"]()
+
+    with patch(
+        "app.services.grounded_generation_service.GroundedGenerationService.generate_research_tasks",
+        local_grounded_generation,
+    ):
+        data = _post_generate_task("mRNA 疫苗为什么需要 LNP？")
 
     _assert_stable_fallback_response(data)
 
