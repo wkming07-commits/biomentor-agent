@@ -326,17 +326,21 @@ class PhotoLearningService:
 
         summary = str(llm_result.get("summary") or llm_result.get("overview") or llm_result.get("core_summary") or "").strip()
         if not summary and knowledge_points:
-            summary = "?".join(
-                item.get("description") or item.get("name") or ""
+            # 去除末尾标点后再连接，避免重复
+            summary = "。".join(
+                (item.get("description") or item.get("name") or "").rstrip("。.？！")
                 for item in knowledge_points[:3]
                 if item.get("description") or item.get("name")
             ).strip()
+            # 如果结尾没有句号，添加一个
+            if summary and not summary.endswith(("。", ".", "？", "！")):
+                summary += "。"
         if not summary:
             raise RuntimeError("GLM analysis did not return a summary")
 
-        learning_suggestions = self._normalize_string_list(
-            llm_result.get("learning_suggestions") or llm_result.get("suggestions")
-        )
+        learning_suggestions = llm_result.get("learning_suggestions") or llm_result.get("suggestions") or []
+        if isinstance(learning_suggestions, list):
+            learning_suggestions = self._normalize_learning_suggestions(learning_suggestions)
 
         concepts, papers = self._match_knowledge(all_keywords[:8])
         questions = self._normalize_questions(llm_result.get("questions"))
@@ -366,7 +370,7 @@ class PhotoLearningService:
             "summary": summary,
             "learning_suggestions": learning_suggestions[:4],
             "knowledge_points": knowledge_points[:8],
-            "questions": questions[:5],
+            "questions": questions[:10],
         }
 
     def _attach_processing_metadata(
@@ -419,6 +423,25 @@ class PhotoLearningService:
             return []
         normalized = [str(item).strip() for item in value if str(item).strip()]
         return list(dict.fromkeys(normalized))
+
+    def _normalize_learning_suggestions(self, value: list) -> list[dict]:
+        normalized: list[dict] = []
+        for item in value:
+            if isinstance(item, dict):
+                error_point = str(item.get("error_point") or item.get("title") or "").strip()
+                error_reason = str(item.get("error_reason") or item.get("reason") or "").strip()
+                training_method = str(item.get("training_method") or item.get("method") or "").strip()
+                if error_point or error_reason or training_method:
+                    normalized.append({
+                        "error_point": error_point,
+                        "error_reason": error_reason,
+                        "training_method": training_method,
+                    })
+            else:
+                text = str(item).strip()
+                if text:
+                    normalized.append({"error_point": text, "error_reason": "", "training_method": ""})
+        return normalized
 
     def _normalize_questions(self, value: Any) -> list[dict[str, Any]]:
         if not isinstance(value, list):
