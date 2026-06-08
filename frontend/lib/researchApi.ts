@@ -417,7 +417,14 @@ export async function askResearchTutor(input: {
   }
 
   const taskTitle = input.selected_task?.title;
-  const answer = taskTitle
+  const normalizedQuestion = input.question.trim().toLowerCase();
+  const isCasual = ["哈哈", "哈哈哈", "你好", "在吗", "ok", "hi", "hello"].includes(normalizedQuestion) || /^哈{2,}$/.test(normalizedQuestion);
+  const isIndustryCaseQuestion = ["产业实例", "产业案例", "应用案例", "产业应用", "有啥案例", "有哪些例子", "有啥例子"].some((item) => input.question.includes(item));
+  const answer = isCasual
+    ? `可以的，我可以围绕${input.case_title ? `「${input.case_title}」` : "当前案例"}帮你分析机制、文献、产业案例或科研训练任务。你可以问：这个案例有哪些产业应用？需要哪些文献支撑？`
+    : isIndustryCaseQuestion
+    ? `可以从当前案例出发查看相关产业案例。建议优先比较同一技术方向、相同知识点或相似应用场景的案例，再整理它们的机制、证据边界和训练任务。`
+    : taskTitle
     ? `可以先围绕「${taskTitle}」把问题拆成研究目标、证据来源、方法设计和局限性四部分。当前问题是「${input.question}」，建议先明确要验证的核心假设，再选择可支撑判断的文献或案例证据。`
     : `可以先把你的问题「${input.question}」拆成研究方向、关键词、证据来源和可生成的训练任务。建议先确定核心概念，再补充本地精选文献或公开文献，最后形成一个可讨论的科研训练问题。`;
 
@@ -426,9 +433,9 @@ export async function askResearchTutor(input: {
     answer,
     evidence_used: [],
     suggested_next_questions: [
+      "有哪些产业案例可参考？",
       "这个问题适合先查哪些关键词？",
       "可以拆成哪几类科研训练任务？",
-      "当前资料还不能支持哪些结论？",
     ],
     boundary: "该回答用于科研训练，不替代真实实验设计审批。",
   };

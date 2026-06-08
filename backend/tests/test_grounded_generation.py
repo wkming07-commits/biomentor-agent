@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 
 from app.services.ai_provider import GLMAIProvider
 from app.services.grounded_generation_service import GroundedGenerationService
@@ -94,3 +95,84 @@ async def test_tutor_fallback_uses_selected_task_and_boundary(monkeypatch):
     assert "实验设计" in payload["answer"]
     assert payload["suggested_next_questions"]
     assert "不替代真实实验设计审批" in payload["boundary"]
+
+
+class FakeCaseQuery:
+    def __init__(self, cases):
+        self._cases = cases
+
+    def all(self):
+        return self._cases
+
+
+class FakeCaseDb:
+    def __init__(self, cases):
+        self._cases = cases
+
+    def query(self, _model):
+        return FakeCaseQuery(self._cases)
+
+
+def _case(case_key, title, direction, category, core, keywords):
+    return SimpleNamespace(
+        case_key=case_key,
+        title=title,
+        subtitle="",
+        industry_direction=direction,
+        category=category,
+        core_problem=core,
+        knowledge_points=keywords,
+        recommended_keywords=keywords,
+    )
+
+
+async def _fake_collect(*args, **kwargs):
+    return {
+        "evidence_items": [
+            {"id": "case-detail-case-003", "title": "PD-1/PD-L1 免疫检查点抑制剂", "source_type": "local_case_detail"}
+        ],
+        "evidence_count": 1,
+        "has_external_evidence": False,
+        "has_local_evidence": True,
+        "case_context": {},
+    }
+
+
+@pytest.mark.anyio
+async def test_tutor_industry_case_question_returns_local_case_examples(monkeypatch):
+    monkeypatch.setattr("app.services.retrieval_service.RetrievalService.collect", _fake_collect)
+    service = GroundedGenerationService(FakeCaseDb([
+        _case("case-003", "PD-1/PD-L1 免疫检查点抑制剂", "免疫治疗", "抗体药物", "肿瘤免疫逃逸与免疫检查点阻断", ["PD-1", "PD-L1", "肿瘤免疫"]),
+        _case("case-002", "CAR-T 细胞治疗与肿瘤免疫", "细胞治疗", "肿瘤免疫", "工程化 T 细胞识别肿瘤抗原", ["CAR-T", "T 细胞", "肿瘤免疫"]),
+        _case("case-001", "Venetoclax 与 BCL-2 细胞凋亡", "靶向治疗", "肿瘤药物", "调控细胞凋亡通路", ["BCL-2", "Venetoclax", "肿瘤"]),
+    ]))
+
+    payload = await service.answer_tutor(
+        question="有啥产业实例",
+        case_id="case-003",
+        case_title="PD-1/PD-L1 免疫检查点抑制剂",
+    )
+
+    assert payload["source_mode"] == "local_fallback"
+    assert "PD-1/PD-L1" in payload["answer"]
+    assert "CAR-T" in payload["answer"] or "Venetoclax" in payload["answer"]
+    assert "证据不足" not in payload["answer"]
+    assert "训练案例" in payload["boundary"]
+
+
+@pytest.mark.anyio
+async def test_tutor_casual_question_returns_guidance_not_bare_insufficient(monkeypatch):
+    monkeypatch.setattr("app.services.retrieval_service.RetrievalService.collect", _fake_collect)
+    service = GroundedGenerationService(FakeCaseDb([]))
+
+    payload = await service.answer_tutor(
+        question="哈哈哈",
+        case_id="case-003",
+        case_title="PD-1/PD-L1 免疫检查点抑制剂",
+    )
+
+    assert payload["source_mode"] == "local_fallback"
+    assert "机制" in payload["answer"]
+    assert "产业案例" in payload["answer"]
+    assert "当前证据不足，不能确认" not in payload["answer"]
+    assert payload["suggested_next_questions"]
