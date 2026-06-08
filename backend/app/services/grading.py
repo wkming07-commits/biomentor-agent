@@ -37,6 +37,10 @@ class GradingService:
         response = self.db.query(Response).filter(Response.id == response_id).first()
         if not response: return None
 
+        existing_grade = self.db.query(Grade).filter(Grade.response_id == response_id).first()
+        if existing_grade:
+            return existing_grade
+
         question = self.db.query(Question).filter(Question.id == response.question_id).first()
         if not question: return None
 
@@ -50,6 +54,7 @@ class GradingService:
             try:
                 return self._llm_grade(response, question)
             except Exception:
+                self.db.rollback()
                 pass  # fall through to rule-based
 
         return self._rule_based_grade(response, question)

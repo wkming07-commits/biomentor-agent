@@ -63,7 +63,7 @@ class Settings(BaseSettings):
 
     # ---- Agent ----
     AGENT_MAX_RETRIES: int = 2
-    AGENT_TIMEOUT_SECONDS: int = 45
+    AGENT_TIMEOUT_SECONDS: int = 120
 
     # ---- Assessment ----
     QUESTION_AUTO_PUBLISH: bool = False

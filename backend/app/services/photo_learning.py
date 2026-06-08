@@ -115,21 +115,22 @@ class PhotoLearningService:
             )
 
         if file_kind == "pdf":
-            llm_result = self._run_pdf_visual_analysis(
-                file_bytes=file_bytes,
-                filename=filename,
-            )
-            transcribed_text = self._analysis_text_from_result(llm_result)
-            if not transcribed_text:
-                raise RuntimeError("GLM PDF analysis did not return transcribed text")
+            extracted = self.ocr_service.extract(file_bytes, "application/pdf", filename)
+            if not extracted.get("success"):
+                raise RuntimeError(str(extracted.get("error", "GLM PDF extraction failed")))
 
-            analysis = self._build_analysis(transcribed_text, llm_result)
+            extracted_text = str(extracted.get("text", "")).strip()
+            if not extracted_text:
+                raise RuntimeError("GLM PDF parser returned empty text")
+
+            analysis_text = self._prepare_extracted_text_for_analysis(extracted_text, max_chars=1800)
+            analysis = self.analyze(analysis_text)
             return self._attach_processing_metadata(
                 analysis,
                 file_kind=file_kind,
-                engine=f"glm-pdf-analysis:{self.llm.settings.GLM_VISION_MODEL or 'glm-4v-flash'}",
-                char_count=len(transcribed_text),
-                filename=filename,
+                engine=str(extracted.get("engine", "glm-layout-parsing:pdf")),
+                char_count=int(extracted.get("char_count", 0) or len(extracted_text)),
+                filename=str(extracted.get("filename", filename)),
             )
 
         extracted = self.ocr_service.extract(file_bytes, mime_type, filename)
@@ -157,6 +158,33 @@ class PhotoLearningService:
         keywords = self._normalize_string_list(llm_result.get("keywords"))
         return ", ".join(keywords)
 
+    def _prepare_extracted_text_for_analysis(self, text: str, max_chars: int = 6000) -> str:
+        normalized = re.sub(r"\n{3,}", "\n\n", text.strip())
+        if len(normalized) <= max_chars:
+            return normalized
+
+        lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+        priority_markers = (
+            "protein", "proteinx", "protenix", "pdb", "wwpdb", "alphafold", "taifold",
+            "ligand", "rna", "dna", "msa", "dataset", "训练", "数据", "蛋白", "结构",
+            "核酸", "配体", "复合物", "筛选", "方案", "总结",
+        )
+
+        selected: list[str] = []
+        selected.extend(lines[:40])
+
+        for line in lines[40:]:
+            lower = line.lower()
+            if any(marker in lower for marker in priority_markers):
+                selected.append(line)
+            if sum(len(item) for item in selected) >= max_chars:
+                break
+
+        compact = "\n".join(dict.fromkeys(selected))
+        if len(compact) < max_chars // 2:
+            compact = normalized[:max_chars]
+        return compact[:max_chars]
+
     def analyze(self, text: str, image_base64: str | None = None) -> dict[str, Any]:
         del image_base64
         normalized_text = text.strip()
@@ -171,14 +199,16 @@ class PhotoLearningService:
             raise RuntimeError("LLM service unavailable for photo learning analysis")
 
         last_error: Exception | None = None
-        for limit in (12000, 9000, 7000, 5000):
+        limits = (1800,) if len(text) <= 2500 else (2500, 1800)
+        for limit in limits:
             try:
                 result = self.llm.generate_json(
                     system_prompt=PHOTO_ANALYSIS_SYSTEM,
                     user_prompt=PHOTO_ANALYSIS_USER.format(fileName="uploaded-material", pdfText=text[:limit], text=text[:limit]),
                     schema=PHOTO_ANALYSIS_SCHEMA,
                     temperature=0.2,
-                    max_tokens=2200,
+                    max_tokens=1200,
+                    retries=0,
                 )
                 if isinstance(result, dict) and result:
                     return result

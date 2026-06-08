@@ -229,6 +229,7 @@ class LLMService:
         model: str | None = None,
         temperature: float = 0.2,
         max_tokens: int | None = None,
+        retries: int | None = None,
     ) -> dict[str, Any]:
         response = self.chat(
             messages=[
@@ -239,6 +240,7 @@ class LLMService:
             temperature=temperature,
             max_tokens=max_tokens,
             response_schema=schema,
+            retries=retries,
         )
         if response.parsed:
             return response.parsed

@@ -49,8 +49,10 @@ class OcrService:
 
     def _select_parser(self, mime_type: str, filename: str):
         lower = (filename or "").lower()
+        if lower.endswith(".pdf") or mime_type == "application/pdf":
+            return self._file_parser
         if (mime_type or "").startswith("image/") or lower.endswith(
-            (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".pdf")
-        ) or mime_type == "application/pdf":
+            (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
+        ):
             return self._vision_parser
         return self._file_parser
