@@ -85,13 +85,24 @@ class EmbeddingService:
                 metric_type=settings.MILVUS_METRIC_TYPE,
             )
             client.create_collection(collection_name=name, schema=schema, index_params=index_params)
+        self._load_collection(name)
         self._collections.add(name)
         return name
+
+    def _load_collection(self, name: str) -> None:
+        try:
+            self.client.load_collection(collection_name=name)
+        except Exception:
+            pass
 
     def drop_collection(self, name: str) -> bool:
         if not self.available:
             return False
         if self.client.has_collection(collection_name=name):
+            try:
+                self.client.release_collection(collection_name=name)
+            except Exception:
+                pass
             self.client.drop_collection(collection_name=name)
             self._collections.discard(name)
             return True
