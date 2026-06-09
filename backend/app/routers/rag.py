@@ -15,6 +15,7 @@ def rag_search(data: dict, db: Session = Depends(get_db)):
         query=data.get("query", ""),
         course_id=data.get("course_id"),
         top_k=data.get("top_k", 5),
+        collection=data.get("collection"),
     )
     return results
 

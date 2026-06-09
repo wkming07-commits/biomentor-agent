@@ -49,43 +49,49 @@ class KnowledgeService:
 
     # ── Hybrid Search ────────────────────────────────────────────
 
-    def search_all(self, query: str, course_id: int | None = None, top_k: int = 5) -> dict[str, Any]:
+    def search_all(self, query: str, course_id: int | None = None, top_k: int = 5, collection: str | None = None) -> dict[str, Any]:
         """LLM-powered hybrid search across all knowledge sources."""
         context_parts: list[str] = []
         sources: list[dict] = []
 
-        # Vector search in course materials
-        try:
-            vec_hits = self.vector.hybrid_search("course_materials", query, top_k)
-            for h in vec_hits:
-                context_parts.append(f"[资料来源 {h['metadata'].get('material_id','?')}]\n{h['content'][:600]}")
-                sources.append({"type": "material", "id": h["metadata"].get("material_id"), "content": h["content"][:200]})
-        except Exception:
-            pass
+        selected_collection = (collection or "").strip()
+        search_materials = selected_collection in {"", "course_materials"}
+        search_papers = selected_collection in {"", "papers"}
 
-        try:
-            paper_hits = self.vector.hybrid_search("papers", query, top_k)
-            for h in paper_hits:
-                paper_id = h["metadata"].get("paper_id")
-                context_parts.append(f"[论文片段 {paper_id}] {h['content'][:600]}")
-                sources.append({
-                    "type": "paper_chunk",
-                    "id": paper_id,
-                    "title": h["metadata"].get("title", ""),
-                    "content": h["content"][:200],
-                })
-        except Exception:
-            pass
+        if search_materials:
+            try:
+                vec_hits = self.vector.hybrid_search("course_materials", query, top_k)
+                for h in vec_hits:
+                    context_parts.append(f"[资料来源 {h['metadata'].get('material_id','?')}]\n{h['content'][:600]}")
+                    sources.append({"type": "material", "id": h["metadata"].get("material_id"), "content": h["content"][:200]})
+            except Exception:
+                pass
 
-        # Keyword search in papers
-        papers = (
-            self.db.query(ResearchPaper)
-            .filter(ResearchPaper.title.contains(query) | ResearchPaper.title_zh.contains(query) | ResearchPaper.abstract.contains(query))
-            .limit(top_k).all()
-        )
-        for p in papers:
-            context_parts.append(f"[论文 {p.id}] {p.title_zh}: {p.key_finding[:300]}")
-            sources.append({"type": "paper", "id": p.id, "title": p.title_zh})
+        if search_papers:
+            try:
+                paper_hits = self.vector.hybrid_search("papers", query, top_k)
+                for h in paper_hits:
+                    paper_id = h["metadata"].get("paper_id")
+                    context_parts.append(f"[论文片段 {paper_id}] {h['content'][:600]}")
+                    sources.append({
+                        "type": "paper_chunk",
+                        "id": paper_id,
+                        "title": h["metadata"].get("title", ""),
+                        "content": h["content"][:200],
+                    })
+            except Exception:
+                pass
+
+        papers = []
+        if search_papers:
+            papers = (
+                self.db.query(ResearchPaper)
+                .filter(ResearchPaper.title.contains(query) | ResearchPaper.title_zh.contains(query) | ResearchPaper.abstract.contains(query))
+                .limit(top_k).all()
+            )
+            for p in papers:
+                context_parts.append(f"[论文 {p.id}] {p.title_zh}: {p.key_finding[:300]}")
+                sources.append({"type": "paper", "id": p.id, "title": p.title_zh})
 
         # Keyword search in KPs
         kps = self.db.query(KnowledgePoint).filter(KnowledgePoint.name.contains(query) | KnowledgePoint.definition.contains(query)).limit(top_k).all()

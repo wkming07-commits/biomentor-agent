@@ -219,11 +219,15 @@ class EmbeddingService:
             return []
 
         query_terms = set(query.lower().split())
-        for hit in vector_results:
+        for rank, hit in enumerate(vector_results):
             content_lower = hit["content"].lower()
             keyword_hits = sum(1 for term in query_terms if term in content_lower)
             keyword_bonus = (keyword_hits / max(len(query_terms), 1)) * keyword_weight
-            hit["score"] = hit.get("score", 0.5) * (1 - keyword_weight) + keyword_bonus
+            distance = float(hit.get("score", 1.0) or 1.0)
+            vector_similarity = 1.0 / (1.0 + max(distance, 0.0))
+            rank_bonus = max(0.0, (len(vector_results) - rank) / max(len(vector_results), 1)) * 0.05
+            hit["distance"] = distance
+            hit["score"] = vector_similarity * (1 - keyword_weight) + keyword_bonus + rank_bonus
 
         vector_results.sort(key=lambda h: h.get("score", 0), reverse=True)
         return vector_results[:top_k]
