@@ -79,6 +79,7 @@ class EmbeddingService:
                 self._collections[name] = self.client.create_collection(
                     name=name,
                     metadata={"hnsw:space": "cosine"},
+                    embedding_function=None,
                 )
         return self._collections[name]
 
@@ -128,7 +129,8 @@ class EmbeddingService:
             return self._index_chunks_milvus(collection_name, chunks, metadatas, ids, embeddings)
 
         coll = self.get_collection(collection_name)
-        coll.add(ids=ids, documents=chunks, metadatas=metadatas, embeddings=embeddings)
+        vectors = embeddings or [self._embed_text(chunk) for chunk in chunks]
+        coll.add(ids=ids, documents=chunks, metadatas=metadatas, embeddings=vectors)
         return ids
 
     def _index_chunks_milvus(
@@ -206,11 +208,12 @@ class EmbeddingService:
             return self._search_milvus(collection_name, query, top_k, where, query_embedding)
 
         coll = self.get_collection(collection_name)
-        kwargs: dict[str, Any] = {"query_texts": [query], "n_results": top_k}
+        kwargs: dict[str, Any] = {
+            "query_embeddings": [self._coerce_vector(query_embedding or self._embed_text(query))],
+            "n_results": top_k,
+        }
         if where:
             kwargs["where"] = where
-        if query_embedding:
-            kwargs["query_embeddings"] = [query_embedding]
         results = coll.query(**kwargs)
 
         hits: list[dict[str, Any]] = []
@@ -304,7 +307,7 @@ class EmbeddingService:
         return [getattr(item, "name", str(item)) for item in self.client.list_collections()]
 
     def _embed_text(self, text: str) -> list[float]:
-        """Deterministic local embedding for Milvus when no embedding API is configured."""
+        """Deterministic local embedding used by Chroma and Milvus."""
         dim = max(8, int(settings.MILVUS_VECTOR_DIM or 384))
         tokens = self._tokenize(text)
         vector = [0.0] * dim
