@@ -34,8 +34,8 @@ class KnowledgeService:
     def index_material_chunks(self, material_id: int, collection: str = "course_materials") -> int:
         """Index all chunks of a material into vector DB.
 
-        Uses ChromaDB's built-in embedding function (all-MiniLM-L6-v2 via ONNX).
-        DeepSeek has no Embedding API, so we rely on local embeddings.
+        Uses deterministic local embeddings written to Milvus.
+        The index is local and does not require an embedding API.
         """
         chunks = self.get_chunks_by_material(material_id)
         if not chunks: return 0
@@ -44,7 +44,7 @@ class KnowledgeService:
         metadatas = [{"material_id": material_id, "chunk_index": c.chunk_index, "chunk_id": c.id} for c in chunks]
         ids = [f"mat-{material_id}-chunk-{c.chunk_index}" for c in chunks]
 
-        # Always use ChromaDB's built-in embedding function (local, no API needed)
+        # Always use local deterministic embeddings (no API needed).
         return len(self.vector.index_chunks(collection, texts, metadatas, ids, embeddings=None))
 
     # ── Hybrid Search ────────────────────────────────────────────

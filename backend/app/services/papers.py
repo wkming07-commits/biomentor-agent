@@ -132,9 +132,9 @@ class PaperService:
             for i in range(len(chunks))
         ]
 
-        self.vector.delete_by_where(self.settings.CHROMA_COLLECTION_PAPERS, {"paper_id": paper.id})
+        self.vector.delete_by_where(self.settings.VECTOR_COLLECTION_PAPERS, {"paper_id": paper.id})
         self.vector.index_chunks(
-            self.settings.CHROMA_COLLECTION_PAPERS,
+            self.settings.VECTOR_COLLECTION_PAPERS,
             chunks,
             metadatas=metadatas,
             ids=ids,

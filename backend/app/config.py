@@ -30,13 +30,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50
 
     # ---- Vector DB ----
-    VECTOR_BACKEND: str = "chroma"  # chroma | milvus
-    CHROMA_PERSIST_DIR: str = "./chroma_data"
-    CHROMA_COLLECTION_MATERIALS: str = "course_materials"
-    CHROMA_COLLECTION_PAPERS: str = "papers"
-    CHROMA_COLLECTION_CASES: str = "cases"
-    CHROMA_COLLECTION_QUESTIONS: str = "questions"
-    MILVUS_URI: str = "http://127.0.0.1:19530"
+    VECTOR_COLLECTION_MATERIALS: str = "course_materials"
+    VECTOR_COLLECTION_PAPERS: str = "papers"
+    VECTOR_COLLECTION_CASES: str = "cases"
+    VECTOR_COLLECTION_QUESTIONS: str = "questions"
+    MILVUS_URI: str = "./milvus_data/biomentor.db"
     MILVUS_TOKEN: str = ""
     MILVUS_DB_NAME: str = "default"
     MILVUS_VECTOR_DIM: int = 384
@@ -92,7 +90,9 @@ class Settings(BaseSettings):
 
     def model_post_init(self, _context) -> None:
         os.makedirs(self.UPLOAD_DIR, exist_ok=True)
-        os.makedirs(self.CHROMA_PERSIST_DIR, exist_ok=True)
+        milvus_uri = (self.MILVUS_URI or "").strip()
+        if milvus_uri and "://" not in milvus_uri:
+            os.makedirs(os.path.dirname(milvus_uri) or ".", exist_ok=True)
 
     def resolved_llm_api_key(self) -> str:
         return self.GLM_API_KEY.strip()

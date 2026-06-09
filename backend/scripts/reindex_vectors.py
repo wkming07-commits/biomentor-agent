@@ -1,8 +1,8 @@
-"""Rebuild vector indexes for the configured vector backend.
+"""Rebuild Milvus vector indexes.
 
 Examples:
-  VECTOR_BACKEND=milvus python backend/scripts/reindex_vectors.py --all --clear
-  VECTOR_BACKEND=chroma python backend/scripts/reindex_vectors.py --papers
+  python backend/scripts/reindex_vectors.py --all --clear
+  python backend/scripts/reindex_vectors.py --papers
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def parse_args() -> argparse.Namespace:
 
 def reindex_materials(db, vector: EmbeddingService, clear: bool) -> int:
     settings = get_settings()
-    collection = settings.CHROMA_COLLECTION_MATERIALS
+    collection = settings.VECTOR_COLLECTION_MATERIALS
     total = 0
 
     material_ids = [row[0] for row in db.query(Material.id).order_by(Material.id).all()]
@@ -71,7 +71,7 @@ def reindex_papers(db, clear: bool) -> int:
     total = 0
     for paper_id in paper_ids:
         if clear:
-            service.vector.delete_by_where(settings.CHROMA_COLLECTION_PAPERS, {"paper_id": paper_id})
+            service.vector.delete_by_where(settings.VECTOR_COLLECTION_PAPERS, {"paper_id": paper_id})
         count = service.index_paper_to_knowledge_base(paper_id)
         total += count
         print(f"papers: indexed paper_id={paper_id} chunks={count}")

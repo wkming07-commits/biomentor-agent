@@ -1,9 +1,8 @@
 """
-Vector storage and retrieval service for RAG.
+Milvus vector storage and retrieval service for RAG.
 
 The public interface is intentionally stable for the rest of the backend:
 index_chunks, search, hybrid_search, delete_by_where and collection_stats.
-Set VECTOR_BACKEND=chroma or VECTOR_BACKEND=milvus to choose the storage engine.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ import json
 import math
 import re
 import uuid
+from pathlib import Path
 from typing import Any
 
 from app.config import get_settings
@@ -21,21 +21,19 @@ settings = get_settings()
 
 
 class EmbeddingService:
-    """Manages vector collections for RAG search."""
+    """Manages Milvus vector collections for RAG search."""
 
     def __init__(self):
-        self.backend = (settings.VECTOR_BACKEND or "chroma").strip().lower()
-        if self.backend not in {"chroma", "milvus"}:
-            self.backend = "chroma"
+        self.backend = "milvus"
         self._client: Any | None = None
-        self._collections: dict[str, Any] = {}
+        self._collections: set[str] = set()
         self._import_error: Exception | None = None
 
     @property
     def client(self) -> Any:
         if self._client is None:
             try:
-                self._client = self._create_milvus_client() if self.backend == "milvus" else self._create_chroma_client()
+                self._client = self._create_client()
             except Exception as exc:
                 self._import_error = exc
                 raise
@@ -49,41 +47,24 @@ class EmbeddingService:
         except Exception:
             return False
 
-    def _create_chroma_client(self) -> Any:
-        import chromadb
-        from chromadb.config import Settings as ChromaSettings
-
-        return chromadb.PersistentClient(
-            path=settings.CHROMA_PERSIST_DIR,
-            settings=ChromaSettings(anonymized_telemetry=False),
-        )
-
-    def _create_milvus_client(self) -> Any:
+    def _create_client(self) -> Any:
         from pymilvus import MilvusClient
 
-        kwargs: dict[str, Any] = {"uri": settings.MILVUS_URI}
+        uri = (settings.MILVUS_URI or "").strip()
+        if uri and not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", uri):
+            Path(uri).parent.mkdir(parents=True, exist_ok=True)
+
+        kwargs: dict[str, Any] = {"uri": uri}
         if settings.MILVUS_TOKEN:
             kwargs["token"] = settings.MILVUS_TOKEN
-        if settings.MILVUS_DB_NAME:
+        if settings.MILVUS_DB_NAME and uri.startswith(("http://", "https://", "tcp://", "grpc://")):
             kwargs["db_name"] = settings.MILVUS_DB_NAME
         return MilvusClient(**kwargs)
 
-    def get_collection(self, name: str) -> Any:
-        if self.backend == "milvus":
-            return self._ensure_milvus_collection(name)
+    def get_collection(self, name: str) -> str:
+        return self._ensure_collection(name)
 
-        if name not in self._collections:
-            try:
-                self._collections[name] = self.client.get_collection(name)
-            except Exception:
-                self._collections[name] = self.client.create_collection(
-                    name=name,
-                    metadata={"hnsw:space": "cosine"},
-                    embedding_function=None,
-                )
-        return self._collections[name]
-
-    def _ensure_milvus_collection(self, name: str) -> str:
+    def _ensure_collection(self, name: str) -> str:
         if name in self._collections:
             return name
 
@@ -104,8 +85,18 @@ class EmbeddingService:
                 metric_type=settings.MILVUS_METRIC_TYPE,
             )
             client.create_collection(collection_name=name, schema=schema, index_params=index_params)
-        self._collections[name] = name
+        self._collections.add(name)
         return name
+
+    def drop_collection(self, name: str) -> bool:
+        if not self.available:
+            return False
+        if self.client.has_collection(collection_name=name):
+            self.client.drop_collection(collection_name=name)
+            self._collections.discard(name)
+            return True
+        self._collections.discard(name)
+        return False
 
     def index_chunks(
         self,
@@ -115,7 +106,7 @@ class EmbeddingService:
         ids: list[str] | None = None,
         embeddings: list[list[float]] | None = None,
     ) -> list[str]:
-        """Index document chunks into a vector collection and return chunk IDs."""
+        """Index document chunks into a Milvus collection and return chunk IDs."""
         if not chunks:
             return []
         if ids is None:
@@ -125,22 +116,6 @@ class EmbeddingService:
         if not self.available:
             return ids
 
-        if self.backend == "milvus":
-            return self._index_chunks_milvus(collection_name, chunks, metadatas, ids, embeddings)
-
-        coll = self.get_collection(collection_name)
-        vectors = embeddings or [self._embed_text(chunk) for chunk in chunks]
-        coll.add(ids=ids, documents=chunks, metadatas=metadatas, embeddings=vectors)
-        return ids
-
-    def _index_chunks_milvus(
-        self,
-        collection_name: str,
-        chunks: list[str],
-        metadatas: list[dict[str, Any]],
-        ids: list[str],
-        embeddings: list[list[float]] | None,
-    ) -> list[str]:
         self.get_collection(collection_name)
         vectors = embeddings or [self._embed_text(chunk) for chunk in chunks]
         rows = []
@@ -170,20 +145,8 @@ class EmbeddingService:
         """Delete all chunks matching a metadata filter."""
         if not self.available:
             return 0
-        if self.backend == "milvus":
-            return self._delete_by_where_milvus(collection_name, where)
-
-        coll = self.get_collection(collection_name)
-        results = coll.get(where=where)
-        ids = results.get("ids") or []
-        if ids:
-            coll.delete(ids=ids)
-            return len(ids)
-        return 0
-
-    def _delete_by_where_milvus(self, collection_name: str, where: dict[str, Any]) -> int:
         self.get_collection(collection_name)
-        expr = self._milvus_filter(where)
+        expr = self._filter_expr(where)
         if not expr:
             return 0
         rows = self.client.query(collection_name=collection_name, filter=expr, output_fields=["id"], limit=16384)
@@ -204,37 +167,6 @@ class EmbeddingService:
         """Vector similarity search returning {id, content, metadata, score}."""
         if not self.available:
             return []
-        if self.backend == "milvus":
-            return self._search_milvus(collection_name, query, top_k, where, query_embedding)
-
-        coll = self.get_collection(collection_name)
-        kwargs: dict[str, Any] = {
-            "query_embeddings": [self._coerce_vector(query_embedding or self._embed_text(query))],
-            "n_results": top_k,
-        }
-        if where:
-            kwargs["where"] = where
-        results = coll.query(**kwargs)
-
-        hits: list[dict[str, Any]] = []
-        if results["ids"] and results["ids"][0]:
-            for i, doc_id in enumerate(results["ids"][0]):
-                hits.append({
-                    "id": doc_id,
-                    "content": results["documents"][0][i] if results["documents"] else "",
-                    "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                    "score": results["distances"][0][i] if results["distances"] else 0.0,
-                })
-        return hits
-
-    def _search_milvus(
-        self,
-        collection_name: str,
-        query: str,
-        top_k: int,
-        where: dict[str, Any] | None,
-        query_embedding: list[float] | None,
-    ) -> list[dict[str, Any]]:
         self.get_collection(collection_name)
         vector = self._coerce_vector(query_embedding or self._embed_text(query))
         search_kwargs: dict[str, Any] = {
@@ -245,7 +177,7 @@ class EmbeddingService:
             "output_fields": ["content", "metadata_json"],
             "search_params": {"metric_type": settings.MILVUS_METRIC_TYPE, "params": {}},
         }
-        expr = self._milvus_filter(where)
+        expr = self._filter_expr(where)
         if expr:
             search_kwargs["filter"] = expr
         results = self.client.search(**search_kwargs)
@@ -286,28 +218,22 @@ class EmbeddingService:
         return vector_results[:top_k]
 
     def collection_stats(self, name: str) -> dict[str, Any]:
-        """Get statistics for a collection."""
+        """Get statistics for a Milvus collection."""
         try:
-            if self.backend == "milvus":
-                self.get_collection(name)
-                stats = self.client.get_collection_stats(collection_name=name)
-                count = stats.get("row_count") or stats.get("num_entities") or stats.get("count") or 0
-                return {"name": name, "backend": "milvus", "count": int(count)}
-
-            coll = self.get_collection(name)
-            return {"name": name, "backend": "chroma", "count": coll.count()}
+            self.get_collection(name)
+            stats = self.client.get_collection_stats(collection_name=name)
+            count = stats.get("row_count") or stats.get("num_entities") or stats.get("count") or 0
+            return {"name": name, "backend": self.backend, "count": int(count)}
         except Exception as exc:
             return {"name": name, "backend": self.backend, "count": 0, "error": str(exc) or "unavailable"}
 
     def list_collections(self) -> list[str]:
         if not self.available:
             return []
-        if self.backend == "milvus":
-            return list(self.client.list_collections())
-        return [getattr(item, "name", str(item)) for item in self.client.list_collections()]
+        return list(self.client.list_collections())
 
     def _embed_text(self, text: str) -> list[float]:
-        """Deterministic local embedding used by Chroma and Milvus."""
+        """Deterministic local embedding used by the Milvus index."""
         dim = max(8, int(settings.MILVUS_VECTOR_DIM or 384))
         tokens = self._tokenize(text)
         vector = [0.0] * dim
@@ -338,18 +264,18 @@ class EmbeddingService:
     def _dynamic_metadata_fields(self, metadata: dict[str, Any]) -> dict[str, Any]:
         fields: dict[str, Any] = {}
         for key, value in metadata.items():
-            if not self._valid_milvus_field_name(key):
+            if not self._valid_field_name(key):
                 continue
             if isinstance(value, (bool, int, float, str)):
                 fields[key] = value
         return fields
 
-    def _milvus_filter(self, where: dict[str, Any] | None) -> str:
+    def _filter_expr(self, where: dict[str, Any] | None) -> str:
         if not where:
             return ""
         parts = []
         for key, value in where.items():
-            if not self._valid_milvus_field_name(key):
+            if not self._valid_field_name(key):
                 continue
             if isinstance(value, bool):
                 parts.append(f"{key} == {str(value).lower()}")
@@ -360,7 +286,7 @@ class EmbeddingService:
                 parts.append(f'{key} == "{escaped}"')
         return " and ".join(parts)
 
-    def _valid_milvus_field_name(self, key: str) -> bool:
+    def _valid_field_name(self, key: str) -> bool:
         return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", str(key or "")))
 
     def _json_dumps(self, value: Any) -> str:
