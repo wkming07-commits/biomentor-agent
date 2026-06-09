@@ -368,9 +368,9 @@ class PhotoLearningService:
         if not summary:
             raise RuntimeError("GLM analysis did not return a summary")
 
-        learning_suggestions = llm_result.get("learning_suggestions") or llm_result.get("suggestions") or []
-        if isinstance(learning_suggestions, list):
-            learning_suggestions = self._normalize_learning_suggestions(learning_suggestions)
+        learning_suggestions = self._normalize_learning_suggestions(
+            llm_result.get("learning_suggestions") or llm_result.get("suggestions") or []
+        )
 
         concepts, papers = self._match_knowledge(all_keywords[:8])
         questions = self._normalize_questions(llm_result.get("questions"))
@@ -454,24 +454,29 @@ class PhotoLearningService:
         normalized = [str(item).strip() for item in value if str(item).strip()]
         return list(dict.fromkeys(normalized))
 
-    def _normalize_learning_suggestions(self, value: list) -> list[dict]:
-        normalized: list[dict] = []
-        for item in value:
+    def _normalize_learning_suggestions(self, value: Any) -> list[str]:
+        if value is None:
+            return []
+        items = value if isinstance(value, list) else [value]
+        normalized: list[str] = []
+        for item in items:
             if isinstance(item, dict):
                 error_point = str(item.get("error_point") or item.get("title") or "").strip()
-                error_reason = str(item.get("error_reason") or item.get("reason") or "").strip()
-                training_method = str(item.get("training_method") or item.get("method") or "").strip()
-                if error_point or error_reason or training_method:
-                    normalized.append({
-                        "error_point": error_point,
-                        "error_reason": error_reason,
-                        "training_method": training_method,
-                    })
+                error_reason = str(item.get("error_reason") or item.get("reason") or item.get("description") or "").strip()
+                training_method = str(item.get("training_method") or item.get("method") or item.get("suggestion") or "").strip()
+                parts = []
+                if error_point:
+                    parts.append(error_point)
+                if error_reason:
+                    parts.append(error_reason)
+                if training_method:
+                    parts.append(f"Training suggestion: {training_method}")
+                suggestion = "; ".join(parts).strip()
             else:
-                text = str(item).strip()
-                if text:
-                    normalized.append({"error_point": text, "error_reason": "", "training_method": ""})
-        return normalized
+                suggestion = str(item or "").strip()
+            if suggestion:
+                normalized.append(suggestion)
+        return list(dict.fromkeys(normalized))
 
     def _normalize_questions(self, value: Any) -> list[dict[str, Any]]:
         if not isinstance(value, list):
