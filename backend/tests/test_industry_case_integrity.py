@@ -3,8 +3,14 @@ import re
 from pathlib import Path
 from types import SimpleNamespace
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base
+from app.models import Course, IndustryCase, SourceType
 from app.schemas import IndustryCaseOut
 from app.services.retrieval_service import RetrievalService
+from app.seed import _industry_case_values, _seed_industry_cases, seed_demo_data
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -153,3 +159,85 @@ def test_seed_source_types_are_supported_by_backend_enum():
     unsupported = seen - supported
     assert not unsupported, f"Unsupported source types in seed data: {sorted(unsupported)}"
     assert "product_page" in seen
+
+
+def _memory_session():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return Session()
+
+
+def test_seed_industry_cases_empty_database_loads_all_cases():
+    db = _memory_session()
+    try:
+        _seed_industry_cases(db)
+        db.commit()
+
+        assert db.query(IndustryCase).count() == 36
+        assert db.query(IndustryCase).filter(IndustryCase.case_key == "case-036").first() is not None
+    finally:
+        db.close()
+
+
+def test_seed_demo_data_repairs_old_database_with_only_five_seed_cases():
+    db = _memory_session()
+    seed_cases = _seed_cases()
+    try:
+        db.add(Course(id=1, name="已有课程", name_en="", description="", teacher_name=""))
+        for raw in seed_cases[:5]:
+            values = _industry_case_values(raw)
+            if values["case_key"] == "case-001":
+                values["title"] = "旧标题，需要被 seed 更新"
+            db.add(IndustryCase(**values))
+        db.commit()
+
+        seed_demo_data(db)
+
+        assert db.query(IndustryCase).count() == 36
+        assert db.query(IndustryCase).filter(IndustryCase.case_key == "case-036").first() is not None
+        assert db.query(IndustryCase).filter(IndustryCase.case_key == "case-001").first().title == seed_cases[0]["title"]
+    finally:
+        db.close()
+
+
+def test_seed_industry_cases_is_idempotent_and_preserves_custom_cases():
+    db = _memory_session()
+    try:
+        _seed_industry_cases(db)
+        db.commit()
+        _seed_industry_cases(db)
+        db.commit()
+
+        custom = IndustryCase(
+            case_key="custom-001",
+            title="用户自定义案例",
+            subtitle="",
+            industry_direction="自定义方向",
+            category="自定义分类",
+            core_problem="用户自定义案例不应被 seed 删除",
+            source_type="academic",
+        )
+        db.add(custom)
+        db.commit()
+        _seed_industry_cases(db)
+        db.commit()
+
+        assert db.query(IndustryCase).filter(IndustryCase.case_key.like("case-%")).count() == 36
+        assert db.query(IndustryCase).filter(IndustryCase.case_key == "custom-001").first() is not None
+        assert db.query(IndustryCase).count() == 37
+    finally:
+        db.close()
+
+
+def test_seed_industry_cases_keeps_product_page_source_type_supported():
+    db = _memory_session()
+    try:
+        _seed_industry_cases(db)
+        db.commit()
+
+        product_case = db.query(IndustryCase).filter(IndustryCase.source_type == SourceType.product_page).first()
+        assert product_case is not None
+        assert product_case.source_type == SourceType.product_page
+    finally:
+        db.close()

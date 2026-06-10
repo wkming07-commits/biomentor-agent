@@ -39,6 +39,8 @@ def _utcnow():
 def seed_demo_data(db: Session):
     """Seed all demo data. Idempotent — skips if data already exists."""
     if db.query(Course).count() > 0:
+        _seed_industry_cases(db)
+        db.commit()
         return
 
     print("[seed] Creating demo data...")
@@ -354,42 +356,56 @@ def _seed_industry_cases(db: Session):
     with open(seed_file, "r", encoding="utf-8") as f:
         cases = json.load(f)
 
-    for idx, c in enumerate(cases):
-        db.add(IndustryCase(
-            case_key=c["case_key"],
-            title=c["title"],
-            subtitle=c.get("subtitle", ""),
-            industry_direction=c.get("industry_direction", ""),
-            company=c.get("company", ""),
-            category=c.get("category", ""),
-            real_product_or_technology=c.get("real_product_or_technology", ""),
-            background=c.get("background", ""),
-            core_problem=c.get("core_problem", ""),
-            problem_statement=c.get("problem_statement", ""),
-            research_foundation=c.get("research_foundation", ""),
-            application_value=c.get("application_value", ""),
-            data_description=c.get("data_description", ""),
-            knowledge_points=c.get("knowledge_points", []),
-            required_abilities=c.get("required_abilities", []),
-            guide_questions=c.get("guide_questions", []),
-            references=c.get("references", []),
-            evaluation_dimensions=c.get("evaluation_dimensions", []),
-            analysis_text=c.get("analysis_text", ""),
-            difficulty=c.get("difficulty", "medium"),
-            recommended_keywords=c.get("recommended_keywords", []),
-            related_papers=c.get("related_papers", []),
-            related_concepts=c.get("related_concepts", []),
-            linked_research_task=c.get("linked_research_task", ""),
-            evidence_level=c.get("evidence_level", "medium"),
-            source_type=c.get("source_type", "academic"),
-            application_scenario=c.get("application_scenario", ""),
-            display_focus=c.get("display_focus", ""),
-            migration_path=c.get("migration_path", {}),
-            source_urls=c.get("source_urls", []),
-            is_featured=c.get("is_featured", False),
-        ))
+    created = 0
+    updated = 0
+    for c in cases:
+        values = _industry_case_values(c)
+        existing = db.query(IndustryCase).filter(IndustryCase.case_key == c["case_key"]).first()
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+            updated += 1
+        else:
+            db.add(IndustryCase(**values))
+            created += 1
     db.flush()
-    print(f"[seed] Loaded {len(cases)} industry cases")
+    print(f"[seed] Loaded {len(cases)} industry cases ({created} created, {updated} updated)")
+
+
+def _industry_case_values(c: dict) -> dict:
+    return {
+        "case_key": c["case_key"],
+        "title": c["title"],
+        "subtitle": c.get("subtitle", ""),
+        "industry_direction": c.get("industry_direction", ""),
+        "company": c.get("company", ""),
+        "category": c.get("category", ""),
+        "real_product_or_technology": c.get("real_product_or_technology", ""),
+        "background": c.get("background", ""),
+        "core_problem": c.get("core_problem", ""),
+        "problem_statement": c.get("problem_statement", ""),
+        "research_foundation": c.get("research_foundation", ""),
+        "application_value": c.get("application_value", ""),
+        "data_description": c.get("data_description", ""),
+        "knowledge_points": c.get("knowledge_points", []),
+        "required_abilities": c.get("required_abilities", []),
+        "guide_questions": c.get("guide_questions", []),
+        "references": c.get("references", []),
+        "evaluation_dimensions": c.get("evaluation_dimensions", []),
+        "analysis_text": c.get("analysis_text", ""),
+        "difficulty": c.get("difficulty", "medium"),
+        "recommended_keywords": c.get("recommended_keywords", []),
+        "related_papers": c.get("related_papers", []),
+        "related_concepts": c.get("related_concepts", []),
+        "linked_research_task": c.get("linked_research_task", ""),
+        "evidence_level": c.get("evidence_level", "medium"),
+        "source_type": c.get("source_type", "academic"),
+        "application_scenario": c.get("application_scenario", ""),
+        "display_focus": c.get("display_focus", ""),
+        "migration_path": c.get("migration_path", {}),
+        "source_urls": c.get("source_urls", []),
+        "is_featured": c.get("is_featured", False),
+    }
 
 
 def _seed_questions(db: Session):
