@@ -235,7 +235,7 @@ export default function HomePage() {
             className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-2xl font-semibold text-[15px] text-[#0d0d1a] bg-white/60 backdrop-blur-xl border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,.86),0_12px_34px_rgba(67,106,160,.1)] hover:bg-white/85 hover:border-[#fbbf24]/30 hover:shadow-[inset_0_1px_0_rgba(255,255,255,.9),0_18px_44px_rgba(251,191,36,.14)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
           >
             <Building2 className="w-4 h-4 text-[#fbbf24]" />
-            查看全部 23 个产业案例
+            查看全部 36 个产业案例
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
