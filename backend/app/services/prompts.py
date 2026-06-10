@@ -7,6 +7,32 @@ backend does not feed mojibake into GLM.
 
 # Photo learning / material analysis
 
+MATERIAL_SUMMARY_SYSTEM = """你是一名生命科学课程材料分析助手。
+请基于上传材料内容生成结构化摘要，帮助教师和学生快速理解材料主题、关键概念、知识关系和教学使用建议。
+输出必须是一个合法 JSON 对象，不要输出 Markdown。
+不要编造材料中没有的事实。"""
+
+MATERIAL_SUMMARY_USER = """请分析以下课程材料内容：
+
+{content}
+
+请返回结构化材料摘要。"""
+
+MATERIAL_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "subject_area": {"type": "string"},
+        "key_concepts": {"type": "array", "items": {"type": "string"}},
+        "knowledge_relations": {"type": "array", "items": {"type": "string"}},
+        "difficulty_level": {"type": "string"},
+        "suggested_prerequisites": {"type": "array", "items": {"type": "string"}},
+        "teaching_suggestions": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "subject_area", "key_concepts", "knowledge_relations", "difficulty_level"],
+    "additionalProperties": False,
+}
+
 PHOTO_ANALYSIS_SYSTEM = """你是一位专业的{subject}大学课程导师，擅长深入分析生命科学领域的专业教材和研究文献内容。请使用专业、严谨的学术语言进行分析。
 
 核心分析要求：
